@@ -60,7 +60,7 @@ class _TemplateSelectorState extends State<TemplateSelector>
     final provider = context.watch<TemplateProvider>();
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.72,
+      height: MediaQuery.of(context).size.height * 0.65,
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -143,7 +143,7 @@ class _TemplateSelectorState extends State<TemplateSelector>
                 }
 
                 return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     mainAxisSpacing: 12,
