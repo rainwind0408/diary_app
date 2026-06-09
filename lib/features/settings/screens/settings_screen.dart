@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -8,9 +9,31 @@ import '../providers/font_size_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/import_export_button.dart';
 import '../../reminders/widgets/reminder_settings.dart';
+import 'about_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() {
+      _version = 'v${info.version}';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,9 +151,21 @@ class SettingsScreen extends StatelessWidget {
                   title: Text('关于', style: AppTextStyles.body.copyWith(
                     color: isDark ? AppColors.darkBodyText : AppColors.bodyText,
                   )),
-                  subtitle: Text('个人日记本 v1.6.0', style: AppTextStyles.label.copyWith(
-                    color: isDark ? AppColors.darkLabelText : AppColors.labelText,
-                  )),
+                  subtitle: Text(
+                    '手写日记 ${_version.isNotEmpty ? _version : ""}',
+                    style: AppTextStyles.label.copyWith(
+                      color: isDark ? AppColors.darkLabelText : AppColors.labelText,
+                    ),
+                  ),
+                  trailing: Icon(Icons.chevron_right,
+                    color: isDark ? AppColors.darkSubtleText : AppColors.subtleText,
+                    size: 20,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AboutScreen()),
+                    );
+                  },
                 ),
               ],
             ),
@@ -139,5 +174,4 @@ class SettingsScreen extends StatelessWidget {
       ],
     );
   }
-
 }
