@@ -9,6 +9,7 @@ import '../providers/font_size_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/import_export_button.dart';
 import '../../reminders/widgets/reminder_settings.dart';
+import '../widgets/ai_settings_section.dart';
 import 'about_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -143,6 +144,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   activeThumbColor: isDark ? AppColors.darkAccentPink : AppColors.accentPink,
                   onChanged: (_) => seasonalProvider.toggleEnabled(),
                 ),
+                Divider(height: 1, color: isDark ? AppColors.darkDividerLine : AppColors.dividerLine),
+                const AiSettingsSection(),
                 Divider(height: 1, color: isDark ? AppColors.darkDividerLine : AppColors.dividerLine),
                 ListTile(
                   leading: Icon(Icons.info_outline,

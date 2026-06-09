@@ -14,6 +14,7 @@ import 'features/reminders/services/notification_service.dart';
 import 'shared/services/sharing_intent_service.dart';
 import 'features/statistics/providers/statistics_provider.dart';
 import 'features/stickers/providers/sticker_provider.dart';
+import 'features/chat/providers/chat_provider.dart';
 import 'app.dart';
 
 void main() async {
@@ -45,6 +46,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ReminderProvider()..loadSettings()),
         ChangeNotifierProvider(create: (_) => StatisticsProvider()..loadStatistics()),
         ChangeNotifierProvider(create: (_) => StickerProvider()..loadStickers()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: const DiaryApp(),
     ),

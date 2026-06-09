@@ -46,6 +46,7 @@
 | 贴纸装饰 | 丰富贴纸库，自由贴放装饰日记页面 |
 | 提醒功能 | 定时提醒写日记，培养记录习惯 |
 | 天气集成 | 自动获取当地天气，记录当日天气状况 |
+| AI 聊天 | 调用国内大模型 API，MCP 工具查询日记数据，智能分析对话 |
 
 ### 数据管理
 
@@ -67,6 +68,7 @@
 │  diary_list │ diary_write │ achievements │ mood   │
 │  statistics │ templates  │ stickers    │ review   │
 │  reminders  │ settings   │ weather     │ onboarding│
+│  chat (AI + MCP)                                          │
 ├─────────────────────────────────────────────────┤
 │                 shared/                          │
 │      export │ import │ zip │ sharing_intent      │
@@ -98,6 +100,7 @@
 | 天气 | http + geolocator | API 天气获取 + GPS 定位 |
 | 备份 | archive | ZIP 压缩与解压 |
 | 加密 | crypto | SHA-256 哈希加密 |
+| AI 聊天 | http | 国内大模型 API 调用（OpenAI 兼容格式） |
 | 字体 | Ma Shan Zheng + ZCOOL XiaoWei | 手写风格字体 |
 
 ## 快速开始
@@ -160,7 +163,8 @@ diary_app/
 │   │   ├── models/                  # 数据模型（日记、图片、音频、天气）
 │   │   └── repositories/            # 数据仓库（封装 CRUD 操作）
 │   │
-│   ├── features/                    # 功能模块（15 个模块）
+│   ├── features/                    # 功能模块（16 个模块）
+│   │   ├── chat/                    # AI 聊天（MCP 工具 + 国内大模型）
 │   │   ├── diary_list/              # 日记列表（筛选、搜索、卡片流）
 │   │   ├── diary_write/             # 日记编写（多页、图片、音频、标签）
 │   │   ├── diary_detail/            # 日记详情（只读展示）
@@ -228,6 +232,8 @@ diary_app/
 
 | 版本 | 日期 | 主要变更 |
 |------|------|---------|
+| v3.1.0 | 2026-06-09 | AI 聊天功能（MCP 工具 + 国内大模型 API + 设置页入口） |
+| v3.0.0 | 2026-06-09 | 关于页面 + 华为提醒修复 + README 重设计 |
 | v2.9.0 | 2026-06-09 | 导入功能优化（file_selector + Share Intent）+ 标签筛选修复 + 成就系统修复 |
 | v2.8.0 | 2026-06-08 | 全局内容回流 + 原子化切页 + RangeError 修复 |
 | v2.7.0 | 2026-06-07 | 3D 数组分页方案替代边界拼接方案 |
