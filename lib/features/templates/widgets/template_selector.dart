@@ -59,116 +59,113 @@ class _TemplateSelectorState extends State<TemplateSelector>
     final goldColor = isDark ? AppColors.darkAccentPink : AppColors.accentPink;
     final provider = context.watch<TemplateProvider>();
 
-    const headerHeight = 12.0 + 4.0 + 16.0 + 18.0 + 16.0 + 48.0;
-    final maxSheetHeight = MediaQuery.of(context).size.height * 0.8;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final gridHeight = (maxSheetHeight - headerHeight).clamp(200.0, maxSheetHeight);
-        return Container(
-          height: maxSheetHeight,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.72,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          const SizedBox(height: 12),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: (isDark ? AppColors.darkSubtleText : AppColors.subtleText)
+                  .withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: (isDark ? AppColors.darkSubtleText : AppColors.subtleText)
-                      .withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '选择模板',
-                style: AppTextStyles.heading.copyWith(
-                  color: isDark ? AppColors.darkTitleText : AppColors.titleText,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TabBar(
-                controller: _tabController,
-                tabs: _tabs,
-                labelColor: goldColor,
-                unselectedLabelColor:
-                    isDark ? AppColors.darkSubtleText : AppColors.subtleText,
-                indicatorColor: goldColor,
-                indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: AppTextStyles.label.copyWith(fontWeight: FontWeight.w600),
-                unselectedLabelStyle: AppTextStyles.label,
-              ),
-              SizedBox(
-                height: gridHeight,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: _categories.map((category) {
-                    final templates = category == TemplateCategory.custom
-                        ? provider.customTemplates
-                        : provider.getByCategory(category);
+          const SizedBox(height: 16),
 
-                    if (templates.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              category == TemplateCategory.custom
-                                  ? Icons.add_circle_outline
-                                  : Icons.note_outlined,
-                              size: 48,
-                              color: isDark
-                                  ? AppColors.darkSubtleText
-                                  : AppColors.subtleText,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              category == TemplateCategory.custom
-                                  ? '还没有自定义模板'
-                                  : '暂无模板',
-                              style: AppTextStyles.body.copyWith(
-                                color: isDark
-                                    ? AppColors.darkSubtleText
-                                    : AppColors.subtleText,
-                              ),
-                            ),
-                          ],
+          // Title
+          Text(
+            '选择模板',
+            style: AppTextStyles.heading.copyWith(
+              color: isDark ? AppColors.darkTitleText : AppColors.titleText,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Tab bar
+          TabBar(
+            controller: _tabController,
+            tabs: _tabs,
+            labelColor: goldColor,
+            unselectedLabelColor:
+                isDark ? AppColors.darkSubtleText : AppColors.subtleText,
+            indicatorColor: goldColor,
+            indicatorSize: TabBarIndicatorSize.label,
+            labelStyle: AppTextStyles.label.copyWith(fontWeight: FontWeight.w600),
+            unselectedLabelStyle: AppTextStyles.label,
+          ),
+
+          // Tab content
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: _categories.map((category) {
+                final templates = category == TemplateCategory.custom
+                    ? provider.customTemplates
+                    : provider.getByCategory(category);
+
+                if (templates.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          category == TemplateCategory.custom
+                              ? Icons.add_circle_outline
+                              : Icons.note_outlined,
+                          size: 48,
+                          color: isDark
+                              ? AppColors.darkSubtleText
+                              : AppColors.subtleText,
                         ),
-                      );
-                    }
+                        const SizedBox(height: 12),
+                        Text(
+                          category == TemplateCategory.custom
+                              ? '还没有自定义模板'
+                              : '暂无模板',
+                          style: AppTextStyles.body.copyWith(
+                            color: isDark
+                                ? AppColors.darkSubtleText
+                                : AppColors.subtleText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-                    return GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 0.7,
-                      ),
-                      itemCount: templates.length,
-                      itemBuilder: (ctx, i) {
-                        return TemplateCard(
-                          template: templates[i],
-                          onTap: () => Navigator.pop(context, templates[i]),
-                          onLongPress: category == TemplateCategory.custom
-                              ? () => _confirmDelete(templates[i])
-                              : null,
-                        );
-                      },
+                return GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.7,
+                  ),
+                  itemCount: templates.length,
+                  itemBuilder: (ctx, i) {
+                    return TemplateCard(
+                      template: templates[i],
+                      onTap: () => Navigator.pop(context, templates[i]),
+                      onLongPress: category == TemplateCategory.custom
+                          ? () => _confirmDelete(templates[i])
+                          : null,
                     );
-                  }).toList(),
-                ),
-              ),
-            ],
+                  },
+                );
+              }).toList(),
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
