@@ -15,7 +15,7 @@ import '../../stickers/models/placed_sticker.dart';
 class DiaryWriteProvider extends ChangeNotifier {
   final DiaryRepository _repository = DiaryRepository();
 
-  // === 3D 数组分页：页 → 行 ===
+  // === 2D 数组分页：页 → 行 ===
   List<List<String>> _diaryPages = [[]];
   int _currentPageIndex = 0;
   static const int maxLinesPerPage = 15;
