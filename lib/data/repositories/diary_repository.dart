@@ -36,7 +36,7 @@ class DiaryRepository {
     final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
-      where: "date(${DatabaseConstants.colCreatedAt}, 'localtime') = ?",
+      where: "date(${DatabaseConstants.colCreatedAt}) = ?",
       whereArgs: [dateStr],
       orderBy: '${DatabaseConstants.colCreatedAt} DESC',
     );
@@ -83,7 +83,7 @@ class DiaryRepository {
     final rows = await db.rawQuery('''
       SELECT COUNT(*) as count, COALESCE(SUM(word_count), 0) as total_words
       FROM ${DatabaseConstants.tableDiaryEntries}
-      WHERE strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}, 'localtime') = ?
+      WHERE strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}) = ?
     ''', [monthStr]);
     if (rows.isEmpty) return {'count': 0, 'total_words': 0};
     return {
@@ -110,7 +110,7 @@ class DiaryRepository {
     final pattern = '%"$tag"%';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
-      where: "date(${DatabaseConstants.colCreatedAt}, 'localtime') = ? AND ${DatabaseConstants.colTags} LIKE ?",
+      where: "date(${DatabaseConstants.colCreatedAt}) = ? AND ${DatabaseConstants.colTags} LIKE ?",
       whereArgs: [dateStr, pattern],
       orderBy: '${DatabaseConstants.colCreatedAt} DESC',
     );
@@ -156,7 +156,7 @@ class DiaryRepository {
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
       columns: [DatabaseConstants.colCreatedAt],
-      where: "strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}, 'localtime') = ?",
+      where: "strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}) = ?",
       whereArgs: [monthStr],
     );
     return rows.map((r) {
@@ -218,7 +218,7 @@ class DiaryRepository {
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
       columns: [DatabaseConstants.colCreatedAt],
-      where: "date(${DatabaseConstants.colCreatedAt}, 'localtime') >= ?",
+      where: "date(${DatabaseConstants.colCreatedAt}) >= ?",
       whereArgs: [startStr],
     );
     return rows.map((r) {
