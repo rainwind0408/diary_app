@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/utils/word_counter.dart';
+import '../../../core/utils/text_layout_utils.dart';
 import '../../../data/models/placed_image.dart';
 import '../../../data/models/placed_audio.dart';
 import 'word_count_display.dart';
@@ -15,7 +16,7 @@ class DiaryPage extends StatefulWidget {
   final String pageContent; // 当前页显示的内容（从连续内容截取）
   final bool isEditable; // 是否是当前编辑页
   final TextEditingController? controller; // 共享控制器（仅编辑页使用）
-  final void Function(String content, double width) onContentChanged;
+  final void Function(String currentText, String? overflowText, double width) onContentChanged;
   final ValueChanged<String>? onTitleChanged;
   final String? initialTitle;
   final ValueChanged<List<PlacedImage>>? onImagesChanged;
@@ -237,7 +238,27 @@ class _DiaryPageState extends State<DiaryPage> {
           return TextField(
             controller: widget.controller,
             onChanged: (value) {
-              widget.onContentChanged(value, constraints.maxWidth);
+              final lineCount = TextLayoutUtils.getVisualLineCount(
+                value,
+                constraints.maxWidth,
+                AppTextStyles.body,
+              );
+
+              if (lineCount > 15) {
+                final splitIndex = TextLayoutUtils.getSplitIndex(
+                  value,
+                  constraints.maxWidth,
+                  15,
+                  AppTextStyles.body,
+                );
+                final currentText = value.substring(0, splitIndex);
+                final overflowText = value.substring(splitIndex);
+
+                widget.onContentChanged(
+                    currentText, overflowText, constraints.maxWidth);
+              } else {
+                widget.onContentChanged(value, null, constraints.maxWidth);
+              }
             },
             maxLines: null,
             expands: true,
@@ -286,7 +307,7 @@ class _DiaryPageState extends State<DiaryPage> {
     // 通知内容变化
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        widget.onContentChanged(newText, 300); // width 会在 LayoutBuilder 中更新
+        widget.onContentChanged(newText, null, 300); // width 会在 LayoutBuilder 中更新
       }
     });
   }

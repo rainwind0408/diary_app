@@ -108,61 +108,61 @@ class DiaryWriteProvider extends ChangeNotifier {
   // === 核心内容操作 ===
 
   /// 更新当前页内容（由 onChanged 调用），全局回流所有页
-  /// [cursorOffset]：当前页内的光标偏移量
-  /// 返回 Map：{'text': 当前页文本, 'pageIndex': 光标所在页码, 'cursorOffset': 页内偏移}
-  Map<String, dynamic> updateCurrentPageText(String text, int cursorOffset) {
-    // 1. 计算光标的全局偏移量（在所有页合并后的字符串中的位置）
-    int globalOffset = 0;
-    for (int i = 0; i < _currentPageIndex && i < _diaryPages.length; i++) {
-      globalOffset += _diaryPages[i].join('\n').length + 1; // +1 是 '\n' 分隔符
-    }
-    globalOffset += cursorOffset;
-
-    // 2. 将当前页替换为新文本
+  /// [currentText]：当前页文本（已按视觉行数分割）
+  /// [overflowText]：溢出文本（超过 15 行的部分），null 表示无溢出
+  /// [width]：容器宽度（用于 TextPainter 计算）
+  /// 返回 Map：{'text': 当前页文本, 'pageIndex': 页码}
+  Map<String, dynamic> updateCurrentPageText(
+    String currentText,
+    String? overflowText,
+    double width,
+  ) {
+    // 直接保存当前页
     while (_diaryPages.length <= _currentPageIndex) {
       _diaryPages.add([]);
     }
-    _diaryPages[_currentPageIndex] = text.split('\n');
+    _diaryPages[_currentPageIndex] = currentText.split('\n');
 
-    // 3. 合并所有页为单一字符串
-    final allLines = <String>[];
-    for (final page in _diaryPages) {
-      allLines.addAll(page);
+    if (overflowText != null && overflowText.isNotEmpty) {
+      // 处理溢出：递归分页
+      _handleOverflow(overflowText, width);
+
+      // 跳页
+      _isDirty = true;
+      _startDraftTimer();
+      notifyListeners();
+
+      return {
+        'text': _diaryPages[_currentPageIndex].join('\n'),
+        'pageIndex': _currentPageIndex,
+      };
     }
 
-    // 4. 重新按 maxLinesPerPage 分页
-    _diaryPages = [];
-    for (var i = 0; i < allLines.length; i += maxLinesPerPage) {
-      final end = (i + maxLinesPerPage).clamp(0, allLines.length);
-      _diaryPages.add(allLines.sublist(i, end));
-    }
-    if (_diaryPages.isEmpty) _diaryPages = [[]];
-
-    // 5. 根据全局偏移量计算新的页码和页内偏移
-    int newPageIndex = 0;
-    int newCursorOffset = 0;
-    int accumulated = 0;
-    for (int i = 0; i < _diaryPages.length; i++) {
-      final pageText = _diaryPages[i].join('\n');
-      final pageEnd = accumulated + pageText.length;
-      if (globalOffset <= pageEnd || i == _diaryPages.length - 1) {
-        newPageIndex = i;
-        newCursorOffset = (globalOffset - accumulated).clamp(0, pageText.length);
-        break;
-      }
-      accumulated = pageEnd + 1; // +1 是 '\n' 分隔符
-    }
-
-    _currentPageIndex = newPageIndex;
+    // 无溢出
     _isDirty = true;
     _startDraftTimer();
     notifyListeners();
 
     return {
-      'text': _diaryPages[newPageIndex].join('\n'),
-      'pageIndex': newPageIndex,
-      'cursorOffset': newCursorOffset,
+      'text': currentText,
+      'pageIndex': _currentPageIndex,
     };
+  }
+
+  /// 递归处理溢出文本
+  void _handleOverflow(String overflowText, double width) {
+    final nextPageIndex = _currentPageIndex + 1;
+    while (_diaryPages.length <= nextPageIndex) {
+      _diaryPages.add([]);
+    }
+
+    // 将溢出文本插入下一页开头
+    final existingLines = _diaryPages[nextPageIndex];
+    final overflowLines = overflowText.split('\n');
+    _diaryPages[nextPageIndex] = [...overflowLines, ...existingLines];
+
+    // 更新当前页码
+    _currentPageIndex = nextPageIndex;
   }
 
   /// 直接保存指定文本到当前页数组（不触发重建，用于切页前同步）

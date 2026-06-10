@@ -469,13 +469,11 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                               _titleController.text = value;
                               provider.markDirty();
                             },
-                            onContentChanged: (value, width) {
+                            onContentChanged: (currentText, overflowText, width) {
                               if (_isLoadingPage) return;
                               final oldPageIndex = provider.currentPageIndex;
-                              final cursorOffset = _contentController.selection.start;
-                              final result = provider.updateCurrentPageText(value, cursorOffset);
+                              final result = provider.updateCurrentPageText(currentText, overflowText, width);
                               final newPageIndex = result['pageIndex'] as int;
-                              final newCursorOffset = result['cursorOffset'] as int;
                               final newText = result['text'] as String;
 
                               _isLoadingPage = true;
@@ -483,14 +481,9 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                                 // 光标跨页：跳转到新页
                                 _contentController.text = newText;
                                 _contentController.selection = TextSelection.fromPosition(
-                                  TextPosition(offset: newCursorOffset),
+                                  TextPosition(offset: newText.length),
                                 );
                                 _pageController.jumpToPage(newPageIndex);
-                              } else {
-                                // 同页：更新光标位置
-                                _contentController.selection = TextSelection.fromPosition(
-                                  TextPosition(offset: newCursorOffset),
-                                );
                               }
                               _isLoadingPage = false;
                             },
