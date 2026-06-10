@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../data/models/diary_entry.dart';
 import '../../../data/repositories/diary_repository.dart';
 import '../../../core/utils/word_counter.dart';
+import '../../../core/utils/text_layout_utils.dart';
+import '../../../core/constants/app_text_styles.dart';
 import '../services/audio_service.dart';
 import '../services/draft_service.dart';
 import '../../../data/models/placed_image.dart';
@@ -156,13 +158,41 @@ class DiaryWriteProvider extends ChangeNotifier {
       _diaryPages.add([]);
     }
 
-    // 将溢出文本插入下一页开头
-    final existingLines = _diaryPages[nextPageIndex];
-    final overflowLines = overflowText.split('\n');
-    _diaryPages[nextPageIndex] = [...overflowLines, ...existingLines];
+    // 检查溢出文本是否超过 15 行
+    final lineCount = TextLayoutUtils.getVisualLineCount(
+      overflowText,
+      width,
+      AppTextStyles.body,
+    );
 
-    // 更新当前页码
-    _currentPageIndex = nextPageIndex;
+    if (lineCount > 15) {
+      // 溢出文本超过 15 行，继续分割
+      final splitIndex = TextLayoutUtils.getSplitIndex(
+        overflowText,
+        width,
+        15,
+        AppTextStyles.body,
+      );
+      final currentPageText = overflowText.substring(0, splitIndex);
+      final nextPageText = overflowText.substring(splitIndex);
+
+      // 当前页保存分割后的文本
+      _diaryPages[nextPageIndex] = currentPageText.split('\n');
+
+      // 更新当前页码
+      _currentPageIndex = nextPageIndex;
+
+      // 递归处理下一页
+      _handleOverflow(nextPageText, width);
+    } else {
+      // 溢出文本不超过 15 行，直接插入
+      final existingLines = _diaryPages[nextPageIndex];
+      final overflowLines = overflowText.split('\n');
+      _diaryPages[nextPageIndex] = [...overflowLines, ...existingLines];
+
+      // 更新当前页码
+      _currentPageIndex = nextPageIndex;
+    }
   }
 
   /// 直接保存指定文本到当前页数组（不触发重建，用于切页前同步）
