@@ -174,9 +174,14 @@ class _DiaryPageState extends State<DiaryPage> {
                           const SizedBox(height: 12),
                         ],
                         Expanded(
-                          child: _buildContentArea(
-                            textColor: textColor,
-                            hintColor: hintColor,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxHeight: 28.0 * 15, // 15 行，每行 28 像素
+                            ),
+                            child: _buildContentArea(
+                              textColor: textColor,
+                              hintColor: hintColor,
+                            ),
                           ),
                         ),
                         if (isTitlePage)
@@ -290,7 +295,8 @@ class _DiaryPageState extends State<DiaryPage> {
 /// 水彩横线装饰
 class _WatercolorLinesPainter extends CustomPainter {
   final Color color;
-  _WatercolorLinesPainter({required this.color});
+  final int maxLines;
+  _WatercolorLinesPainter({required this.color, this.maxLines = 15});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -301,8 +307,9 @@ class _WatercolorLinesPainter extends CustomPainter {
 
     final lineHeight = 28.0;
     final startY = 80.0;
+    int lineCount = 0;
 
-    for (double y = startY; y < size.height - 20; y += lineHeight) {
+    for (double y = startY; y < size.height - 20 && lineCount < maxLines; y += lineHeight) {
       final path = Path();
       path.moveTo(16, y);
       for (double x = 16; x < size.width - 16; x += 2) {
@@ -310,9 +317,10 @@ class _WatercolorLinesPainter extends CustomPainter {
         path.lineTo(x, y + wave);
       }
       canvas.drawPath(path, paint);
+      lineCount++;
     }
   }
 
   @override
-  bool shouldRepaint(_WatercolorLinesPainter old) => old.color != color;
+  bool shouldRepaint(_WatercolorLinesPainter old) => old.color != color || old.maxLines != maxLines;
 }
