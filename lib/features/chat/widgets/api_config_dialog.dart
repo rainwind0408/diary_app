@@ -12,7 +12,7 @@ class ApiConfigDialog extends StatefulWidget {
 
 class _ApiConfigDialogState extends State<ApiConfigDialog> {
   late String _selectedProvider;
-  late String _selectedModel;
+  late TextEditingController _modelController;
   late TextEditingController _apiKeyController;
   late TextEditingController _urlController;
   late TextEditingController _systemPromptController;
@@ -24,7 +24,7 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
   void initState() {
     super.initState();
     _selectedProvider = LlmService.providers.first.name;
-    _selectedModel = LlmService.providers.first.models.first;
+    _modelController = TextEditingController(text: LlmService.providers.first.models.first);
     _apiKeyController = TextEditingController();
     _urlController = TextEditingController();
     _systemPromptController = TextEditingController(text: LlmService.defaultSystemPrompt);
@@ -45,14 +45,10 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
           final exists = LlmService.providers.any((p) => p.name == config['provider']);
           _selectedProvider = exists ? config['provider']! : LlmService.providers.first.name;
         }
-        final currentProvider = LlmService.providers.firstWhere(
-          (p) => p.name == _selectedProvider,
-          orElse: () => LlmService.providers.first,
-        );
-        if (config['model'] != null && currentProvider.models.contains(config['model'])) {
-          _selectedModel = config['model']!;
+        if (config['model'] != null && config['model']!.isNotEmpty) {
+          _modelController.text = config['model']!;
         } else {
-          _selectedModel = currentProvider.models.first;
+          _modelController.text = LlmService.providers.first.models.first;
         }
         if (config['apiKey'] != null) {
           _apiKeyController.text = config['apiKey']!;
@@ -81,11 +77,23 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
 
   void _onProviderChanged(String? value) {
     if (value == null) return;
+    // 先清空，避免显示旧厂商的 key
+    _apiKeyController.clear();
+    _hasApiKey = false;
     setState(() {
       _selectedProvider = value;
       final provider = LlmService.providers.firstWhere((p) => p.name == value);
-      _selectedModel = provider.models.first;
+      _modelController.text = provider.models.first;
       _updateUrl();
+    });
+    // 异步加载该厂商的 key
+    LlmService.getApiKeyFor(value).then((key) {
+      if (mounted && key != null && key.isNotEmpty) {
+        setState(() {
+          _apiKeyController.text = key;
+          _hasApiKey = true;
+        });
+      }
     });
   }
 
@@ -101,7 +109,7 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
     await LlmService.saveConfig(
       provider: _selectedProvider,
       apiKey: apiKey,
-      model: _selectedModel,
+      model: _modelController.text.trim(),
       url: _urlController.text.trim(),
       systemPrompt: _systemPromptController.text.trim(),
     );
@@ -117,6 +125,7 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
   @override
   void dispose() {
     _apiKeyController.removeListener(_onApiKeyChanged);
+    _modelController.dispose();
     _apiKeyController.dispose();
     _urlController.dispose();
     _systemPromptController.dispose();
@@ -180,26 +189,59 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
             const SizedBox(height: 16),
             Text('模型', style: AppTextStyles.label.copyWith(color: subtleColor)),
             const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkPageBackground : AppColors.pageBackground,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+            TextField(
+              controller: _modelController,
+              style: AppTextStyles.body.copyWith(color: textColor),
+              decoration: InputDecoration(
+                hintText: '输入模型名称或端点 ID',
+                hintStyle: AppTextStyles.body.copyWith(color: subtleColor),
+                filled: true,
+                fillColor: isDark ? AppColors.darkPageBackground : AppColors.pageBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accentColor.withValues(alpha: 0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accentColor.withValues(alpha: 0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accentColor),
+                ),
               ),
-              child: DropdownButton<String>(
-                value: _selectedModel,
-                isExpanded: true,
-                underline: const SizedBox(),
-                dropdownColor: bgColor,
-                style: AppTextStyles.body.copyWith(color: textColor),
-                items: currentProvider.models.map((m) =>
-                  DropdownMenuItem(value: m, child: Text(m))
-                ).toList(),
-                onChanged: (v) {
-                  if (v != null) setState(() => _selectedModel = v);
-                },
-              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: currentProvider.models.map((m) {
+                final selected = _modelController.text == m;
+                return GestureDetector(
+                  onTap: () => setState(() => _modelController.text = m),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? accentColor.withValues(alpha: 0.15)
+                          : (isDark ? AppColors.darkPageBackground : AppColors.pageBackground),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected
+                            ? accentColor
+                            : accentColor.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Text(
+                      m,
+                      style: AppTextStyles.label.copyWith(
+                        color: selected ? accentColor : subtleColor,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 16),
             Text('API Key', style: AppTextStyles.label.copyWith(color: subtleColor)),

@@ -65,7 +65,7 @@ class LlmService {
     LlmProvider(
       name: '豆包',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-      models: ['doubao-lite-4k', 'doubao-pro-4k'],
+      models: ['doubao-1.5-pro-32k', 'doubao-1.5-lite-32k'],
     ),
   ];
 
@@ -78,16 +78,43 @@ class LlmService {
     '通义千问': 'qwen-',
     '智谱 GLM': 'glm-',
     '月之暗面': 'moonshot-',
-    '豆包': 'doubao-',
+    // 豆包使用用户自定义端点 ID（ep-xxxx），不做前缀过滤
   };
 
   // ── SharedPreferences keys ──
   static const _keyProvider = 'chat_api_provider';
   static const _keyApiKey = 'chat_api_key';
+  static const _keyApiKeys = 'chat_api_keys';
   static const _keyModel = 'chat_api_model';
   static const _keyUrl = 'chat_api_url';
   static const _keySystemPrompt = 'chat_system_prompt';
   static const _keyCachedProviders = 'chat_cached_providers';
+
+  // ── API Key 按厂商存储 ──
+
+  static Future<Map<String, String>> _loadApiKeys() async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = prefs.getString(_keyApiKeys);
+    if (json != null) {
+      return Map<String, String>.from(jsonDecode(json));
+    }
+    // 迁移：旧单 key → 新 map
+    final oldKey = prefs.getString(_keyApiKey);
+    final oldProvider = prefs.getString(_keyProvider);
+    if (oldKey != null && oldProvider != null) {
+      final map = {oldProvider: oldKey};
+      await prefs.setString(_keyApiKeys, jsonEncode(map));
+      return map;
+    }
+    return {};
+  }
+
+  static Future<void> _saveApiKey(String provider, String apiKey) async {
+    final keys = await _loadApiKeys();
+    keys[provider] = apiKey;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyApiKeys, jsonEncode(keys));
+  }
 
   static const defaultSystemPrompt =
       '你是用户的日记助手，拥有查询日记数据的能力。'
@@ -106,9 +133,11 @@ class LlmService {
 
   static Future<Map<String, String?>> loadConfig() async {
     final prefs = await SharedPreferences.getInstance();
+    final provider = prefs.getString(_keyProvider);
+    final keys = await _loadApiKeys();
     return {
-      'provider': prefs.getString(_keyProvider),
-      'apiKey': prefs.getString(_keyApiKey),
+      'provider': provider,
+      'apiKey': provider != null ? keys[provider] : null,
       'model': prefs.getString(_keyModel),
       'url': prefs.getString(_keyUrl),
       'systemPrompt': prefs.getString(_keySystemPrompt),
@@ -124,7 +153,7 @@ class LlmService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyProvider, provider);
-    await prefs.setString(_keyApiKey, apiKey);
+    await _saveApiKey(provider, apiKey);
     await prefs.setString(_keyModel, model);
     await prefs.setString(_keyUrl, url);
     if (systemPrompt != null) {
@@ -135,6 +164,11 @@ class LlmService {
   static Future<bool> isConfigured() async {
     final config = await loadConfig();
     return config['apiKey'] != null && config['apiKey']!.isNotEmpty;
+  }
+
+  static Future<String?> getApiKeyFor(String provider) async {
+    final keys = await _loadApiKeys();
+    return keys[provider];
   }
 
   // ── 缓存读写 ──
