@@ -155,7 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: isDark ? AppColors.darkBodyText : AppColors.bodyText,
                   )),
                   subtitle: Text(
-                    '手写日记 ${_version.isNotEmpty ? _version : ""}',
+                    '折花日记 ${_version.isNotEmpty ? _version : ""}',
                     style: AppTextStyles.label.copyWith(
                       color: isDark ? AppColors.darkLabelText : AppColors.labelText,
                     ),

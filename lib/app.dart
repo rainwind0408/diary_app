@@ -31,7 +31,7 @@ class DiaryApp extends StatelessWidget {
         textScaler: TextScaler.linear(fontProvider.scale),
       ),
       child: MaterialApp(
-        title: '手写日记',
+        title: '折花日记',
         theme: AppTheme.buildLight(
             seasonalProvider.isEnabled ? seasonalProvider.palette : null),
         darkTheme: AppTheme.buildDark(

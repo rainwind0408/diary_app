@@ -40,7 +40,7 @@ class _AboutScreenState extends State<AboutScreen> {
         final raw = await rootBundle.loadString('assets/README.md');
         readme = _cleanReadme(raw);
       } catch (_) {
-        readme = '# 手写日记\n\n无法加载 README.md 内容。';
+        readme = '# 折花日记\n\n无法加载 README.md 内容。';
       }
       if (!mounted) return;
       setState(() {
@@ -51,7 +51,7 @@ class _AboutScreenState extends State<AboutScreen> {
       if (!mounted) return;
       setState(() {
         _version = '';
-        _readmeContent = '# 手写日记\n\n加载失败: $e';
+        _readmeContent = '# 折花日记\n\n加载失败: $e';
       });
     }
   }
@@ -91,7 +91,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '手写日记',
+                        '折花日记',
                         style: AppTextStyles.heading.copyWith(
                           fontSize: 20,
                           color: isDark ? AppColors.darkTitleText : AppColors.titleText,

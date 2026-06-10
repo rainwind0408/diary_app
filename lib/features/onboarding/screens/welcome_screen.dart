@@ -109,7 +109,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         child: Column(
                           children: [
                             Text(
-                              '手写日记',
+                              '折花日记',
                               style: AppTextStyles.handwritingTitle.copyWith(
                                 color: textColor,
                                 fontSize: 36,

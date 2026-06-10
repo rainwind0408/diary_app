@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 
@@ -25,6 +26,7 @@ class _ChatInputState extends State<ChatInput> {
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _focusNode.addListener(_onFocusChange);
   }
 
   void _onTextChanged() {
@@ -32,9 +34,21 @@ class _ChatInputState extends State<ChatInput> {
     if (has != _hasText) setState(() => _hasText = has);
   }
 
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      // 焦点获取后延迟触发键盘，适配华为 HarmonyOS
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted && _focusNode.hasFocus) {
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
+    _focusNode.removeListener(_onFocusChange);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -46,7 +60,9 @@ class _ChatInputState extends State<ChatInput> {
     _controller.clear();
     _hasText = false;
     widget.onSend(text);
-    _focusNode.requestFocus();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -90,6 +106,7 @@ class _ChatInputState extends State<ChatInput> {
                   focusNode: _focusNode,
                   maxLines: null,
                   textInputAction: TextInputAction.newline,
+                  keyboardType: TextInputType.multiline,
                   style: AppTextStyles.body.copyWith(color: textColor),
                   decoration: InputDecoration(
                     hintText: '和 AI 聊聊你的日记...',

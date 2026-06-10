@@ -42,10 +42,17 @@ class _ApiConfigDialogState extends State<ApiConfigDialog> {
     if (mounted) {
       setState(() {
         if (config['provider'] != null) {
-          _selectedProvider = config['provider']!;
+          final exists = LlmService.providers.any((p) => p.name == config['provider']);
+          _selectedProvider = exists ? config['provider']! : LlmService.providers.first.name;
         }
-        if (config['model'] != null) {
+        final currentProvider = LlmService.providers.firstWhere(
+          (p) => p.name == _selectedProvider,
+          orElse: () => LlmService.providers.first,
+        );
+        if (config['model'] != null && currentProvider.models.contains(config['model'])) {
           _selectedModel = config['model']!;
+        } else {
+          _selectedModel = currentProvider.models.first;
         }
         if (config['apiKey'] != null) {
           _apiKeyController.text = config['apiKey']!;

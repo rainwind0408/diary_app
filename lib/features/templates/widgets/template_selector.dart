@@ -5,6 +5,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../models/template.dart';
 import '../providers/template_provider.dart';
 import 'template_card.dart';
+import 'create_template_dialog.dart';
 
 class TemplateSelector extends StatefulWidget {
   const TemplateSelector({super.key});
@@ -113,34 +114,47 @@ class _TemplateSelectorState extends State<TemplateSelector>
                     : provider.getByCategory(category);
 
                 if (templates.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          category == TemplateCategory.custom
-                              ? Icons.add_circle_outline
-                              : Icons.note_outlined,
-                          size: 48,
-                          color: isDark
-                              ? AppColors.darkSubtleText
-                              : AppColors.subtleText,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          category == TemplateCategory.custom
-                              ? '还没有自定义模板'
-                              : '暂无模板',
-                          style: AppTextStyles.body.copyWith(
-                            color: isDark
-                                ? AppColors.darkSubtleText
-                                : AppColors.subtleText,
+                  return GestureDetector(
+                    onTap: category == TemplateCategory.custom
+                        ? () => _createTemplate()
+                        : null,
+                    behavior: HitTestBehavior.opaque,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            category == TemplateCategory.custom
+                                ? Icons.add_circle_outline
+                                : Icons.note_outlined,
+                            size: 48,
+                            color: category == TemplateCategory.custom
+                                ? goldColor
+                                : (isDark
+                                    ? AppColors.darkSubtleText
+                                    : AppColors.subtleText),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          Text(
+                            category == TemplateCategory.custom
+                                ? '点击创建自定义模板'
+                                : '暂无模板',
+                            style: AppTextStyles.body.copyWith(
+                              color: category == TemplateCategory.custom
+                                  ? goldColor
+                                  : (isDark
+                                      ? AppColors.darkSubtleText
+                                      : AppColors.subtleText),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
+
+                final isCustom = category == TemplateCategory.custom;
+                final gridCount = isCustom ? templates.length + 1 : templates.length;
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(16),
@@ -150,13 +164,44 @@ class _TemplateSelectorState extends State<TemplateSelector>
                     crossAxisSpacing: 12,
                     childAspectRatio: 0.7,
                   ),
-                  itemCount: templates.length,
+                  itemCount: gridCount,
                   itemBuilder: (ctx, i) {
+                    if (isCustom && i == 0) {
+                      return GestureDetector(
+                        onTap: () => _createTemplate(),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: goldColor.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: goldColor.withValues(alpha: 0.25),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add, size: 28, color: goldColor),
+                              const SizedBox(height: 8),
+                              Text(
+                                '新建模板',
+                                style: AppTextStyles.label.copyWith(
+                                  color: goldColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    final template = isCustom ? templates[i - 1] : templates[i];
                     return TemplateCard(
-                      template: templates[i],
-                      onTap: () => Navigator.pop(context, templates[i]),
-                      onLongPress: category == TemplateCategory.custom
-                          ? () => _confirmDelete(templates[i])
+                      template: template,
+                      onTap: () => Navigator.pop(context, template),
+                      onLongPress: isCustom
+                          ? () => _confirmDelete(template)
                           : null,
                     );
                   },
@@ -167,6 +212,13 @@ class _TemplateSelectorState extends State<TemplateSelector>
         ],
       ),
     );
+  }
+
+  Future<void> _createTemplate() async {
+    final template = await CreateTemplateDialog.show(context);
+    if (template != null && mounted) {
+      context.read<TemplateProvider>().addCustomTemplate(template);
+    }
   }
 
   void _confirmDelete(DiaryTemplate template) {

@@ -5,8 +5,15 @@ import '../../chat/screens/chat_screen.dart';
 import '../../chat/widgets/api_config_dialog.dart';
 import '../../chat/services/llm_service.dart';
 
-class AiSettingsSection extends StatelessWidget {
+class AiSettingsSection extends StatefulWidget {
   const AiSettingsSection({super.key});
+
+  @override
+  State<AiSettingsSection> createState() => _AiSettingsSectionState();
+}
+
+class _AiSettingsSectionState extends State<AiSettingsSection> {
+  bool _updating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -64,8 +71,53 @@ class AiSettingsSection extends StatelessWidget {
             );
           },
         ),
+        Divider(
+          height: 1,
+          color: isDark ? AppColors.darkDividerLine : AppColors.dividerLine,
+        ),
+        ListTile(
+          leading: _updating
+              ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: goldColor,
+                  ),
+                )
+              : Icon(Icons.refresh, color: goldColor),
+          title: Text(
+            '更新模型列表',
+            style: AppTextStyles.body.copyWith(color: textColor),
+          ),
+          subtitle: Text(
+            '联网获取当前厂商最新可用模型',
+            style: AppTextStyles.label.copyWith(color: subtleColor),
+          ),
+          onTap: _updating ? null : _updateModels,
+        ),
       ],
     );
+  }
+
+  Future<void> _updateModels() async {
+    setState(() => _updating = true);
+    try {
+      final count = await LlmService.updateModels();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('模型列表已更新，共 $count 个模型')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
   }
 
   void _showNeedConfigHint(BuildContext context, bool isDark, Color goldColor) {

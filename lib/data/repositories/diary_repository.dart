@@ -33,12 +33,11 @@ class DiaryRepository {
 
   Future<List<DiaryEntry>> getEntriesByDate(DateTime date) async {
     final db = await _dbHelper.database;
-    final start = DateTime(date.year, date.month, date.day);
-    final end = start.add(const Duration(days: 1));
+    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
-      where: '${DatabaseConstants.colCreatedAt} >= ? AND ${DatabaseConstants.colCreatedAt} < ?',
-      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      where: "date(${DatabaseConstants.colCreatedAt}, 'localtime') = ?",
+      whereArgs: [dateStr],
       orderBy: '${DatabaseConstants.colCreatedAt} DESC',
     );
     return rows.map((r) => DiaryEntry.fromMap(r)).toList();
@@ -80,13 +79,12 @@ class DiaryRepository {
 
   Future<Map<String, int>> getMonthlyStats(DateTime month) async {
     final db = await _dbHelper.database;
-    final start = DateTime(month.year, month.month, 1);
-    final end = DateTime(month.year, month.month + 1, 1);
+    final monthStr = '${month.year}-${month.month.toString().padLeft(2, '0')}';
     final rows = await db.rawQuery('''
       SELECT COUNT(*) as count, COALESCE(SUM(word_count), 0) as total_words
       FROM ${DatabaseConstants.tableDiaryEntries}
-      WHERE ${DatabaseConstants.colCreatedAt} >= ? AND ${DatabaseConstants.colCreatedAt} < ?
-    ''', [start.toIso8601String(), end.toIso8601String()]);
+      WHERE strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}, 'localtime') = ?
+    ''', [monthStr]);
     if (rows.isEmpty) return {'count': 0, 'total_words': 0};
     return {
       'count': rows.first['count'] as int,
@@ -108,13 +106,12 @@ class DiaryRepository {
 
   Future<List<DiaryEntry>> getEntriesByDateAndTag(DateTime date, String tag) async {
     final db = await _dbHelper.database;
-    final start = DateTime(date.year, date.month, date.day);
-    final end = start.add(const Duration(days: 1));
+    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final pattern = '%"$tag"%';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
-      where: '${DatabaseConstants.colCreatedAt} >= ? AND ${DatabaseConstants.colCreatedAt} < ? AND ${DatabaseConstants.colTags} LIKE ?',
-      whereArgs: [start.toIso8601String(), end.toIso8601String(), pattern],
+      where: "date(${DatabaseConstants.colCreatedAt}, 'localtime') = ? AND ${DatabaseConstants.colTags} LIKE ?",
+      whereArgs: [dateStr, pattern],
       orderBy: '${DatabaseConstants.colCreatedAt} DESC',
     );
     return rows.map((r) => DiaryEntry.fromMap(r)).toList();
@@ -155,13 +152,12 @@ class DiaryRepository {
 
   Future<Set<int>> getEntryDatesInMonth(int year, int month) async {
     final db = await _dbHelper.database;
-    final start = DateTime(year, month, 1);
-    final end = DateTime(year, month + 1, 1);
+    final monthStr = '$year-${month.toString().padLeft(2, '0')}';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
       columns: [DatabaseConstants.colCreatedAt],
-      where: '${DatabaseConstants.colCreatedAt} >= ? AND ${DatabaseConstants.colCreatedAt} < ?',
-      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      where: "strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}, 'localtime') = ?",
+      whereArgs: [monthStr],
     );
     return rows.map((r) {
       final dt = DateTime.parse(r[DatabaseConstants.colCreatedAt] as String);
@@ -218,11 +214,12 @@ class DiaryRepository {
     final db = await _dbHelper.database;
     final now = DateTime.now();
     final start = DateTime(now.year - 1, now.month, now.day);
+    final startStr = '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
       columns: [DatabaseConstants.colCreatedAt],
-      where: '${DatabaseConstants.colCreatedAt} >= ?',
-      whereArgs: [start.toIso8601String()],
+      where: "date(${DatabaseConstants.colCreatedAt}, 'localtime') >= ?",
+      whereArgs: [startStr],
     );
     return rows.map((r) {
       final dt = DateTime.parse(r[DatabaseConstants.colCreatedAt] as String);

@@ -27,7 +27,7 @@ class TemplateCard extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
@@ -39,26 +39,31 @@ class TemplateCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(template.icon, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 10),
+            Text(template.icon, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 6),
             Text(
               template.name,
               style: AppTextStyles.label.copyWith(
                 color: textColor,
                 fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.2,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
-            Text(
-              template.description,
-              style: AppTextStyles.cardDate.copyWith(
-                color: subtleColor,
-                fontSize: 11,
+            const SizedBox(height: 2),
+            Expanded(
+              child: Text(
+                template.description,
+                style: AppTextStyles.cardDate.copyWith(
+                  color: subtleColor,
+                  fontSize: 10,
+                  height: 1.3,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
