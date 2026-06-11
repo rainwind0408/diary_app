@@ -49,7 +49,7 @@ class ChatBubble extends StatelessWidget {
           ],
         ),
         child: isUser
-            ? Text(
+            ? SelectableText(
                 message.content,
                 style: AppTextStyles.body.copyWith(
                   color: isDark ? AppColors.darkTitleText : AppColors.titleText,
@@ -57,6 +57,7 @@ class ChatBubble extends StatelessWidget {
               )
             : MarkdownBody(
                 data: message.content,
+                selectable: true,
                 styleSheet: MarkdownStyleSheet(
                   p: AppTextStyles.body.copyWith(
                     color: isDark ? AppColors.darkBodyText : AppColors.bodyText,
@@ -175,14 +176,13 @@ class _ToolBubbleState extends State<_ToolBubble> {
                         : AppColors.cardBackground,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
+                  child: SelectableText(
                     _formatJson(widget.message.content),
                     style: AppTextStyles.label.copyWith(
                       color: isDark ? AppColors.darkBodyText : AppColors.bodyText,
                       fontSize: 11,
                     ),
                     maxLines: 20,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
