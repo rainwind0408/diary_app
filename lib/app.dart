@@ -108,15 +108,19 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final _diaryListKey = GlobalKey<DiaryListScreenState>();
 
-  void _navigateToWrite() {
-    Navigator.of(context).push(
+  void _navigateToWrite() async {
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const DiaryWriteScreen()),
     );
+    // 写完日记返回后刷新连续天数
+    _diaryListKey.currentState?.refreshStreak();
   }
 
   void _switchToList() {
     setState(() => _currentIndex = 0);
+    _diaryListKey.currentState?.refreshStreak();
   }
 
   @override
@@ -137,7 +141,7 @@ class _MainShellState extends State<MainShell> {
           child: IndexedStack(
             index: _currentIndex,
             children: [
-              DiaryListScreen(onNavigateToWrite: _navigateToWrite),
+              DiaryListScreen(key: _diaryListKey, onNavigateToWrite: _navigateToWrite),
               const AchievementScreen(),
               ReviewScreen(onTagTapped: (_) => _switchToList()),
               const SettingsScreen(),
@@ -152,9 +156,14 @@ class _MainShellState extends State<MainShell> {
               // 写日记按钮
               _navigateToWrite();
             } else {
-              if (index == 0 && _currentIndex == 0) {
-                final date = context.read<DateFilterProvider>().selectedDate;
-                context.read<DiaryListProvider>().loadEntries(date);
+              if (index == 0) {
+                if (_currentIndex == 0) {
+                  // 已在日记标签，点击刷新
+                  final date = context.read<DateFilterProvider>().selectedDate;
+                  context.read<DiaryListProvider>().loadEntries(date);
+                }
+                // 切换到日记标签时刷新连续天数
+                _diaryListKey.currentState?.refreshStreak();
               }
               setState(() => _currentIndex = index);
             }

@@ -28,10 +28,10 @@ class DiaryListScreen extends StatefulWidget {
   const DiaryListScreen({super.key, this.onNavigateToWrite});
 
   @override
-  State<DiaryListScreen> createState() => _DiaryListScreenState();
+  State<DiaryListScreen> createState() => DiaryListScreenState();
 }
 
-class _DiaryListScreenState extends State<DiaryListScreen> {
+class DiaryListScreenState extends State<DiaryListScreen> {
   bool _searchMode = false;
   int _streakDays = 0;
   List<bool> _weekDays = [];
@@ -43,6 +43,11 @@ class _DiaryListScreenState extends State<DiaryListScreen> {
       _loadEntries();
       _loadStreakAndWeek();
     });
+  }
+
+  /// 外部调用：刷新连续天数和本周数据
+  void refreshStreak() {
+    _loadStreakAndWeek();
   }
 
   void _loadEntries() {
