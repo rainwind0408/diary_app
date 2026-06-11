@@ -240,7 +240,7 @@ class DiaryMcpServer {
     final end = DateTime.parse(endDate).add(const Duration(days: 1));
     final allEntries = await _repo.getAllEntries();
     final filtered = allEntries.where((e) =>
-      e.createdAt.isAfter(start) && e.createdAt.isBefore(end)
+      !e.createdAt.isBefore(start) && e.createdAt.isBefore(end)
     ).toList();
     if (filtered.isEmpty) {
       return jsonEncode({'results': [], 'message': '该日期范围内没有日记'});

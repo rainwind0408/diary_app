@@ -12,7 +12,7 @@ class TextLayoutUtils {
     );
     textPainter.layout(maxWidth: maxWidth);
 
-    final lineHeight = style.fontSize! * (style.height ?? 1.2);
+    final lineHeight = (style.fontSize ?? 14.0) * (style.height ?? 1.2);
     return (textPainter.height / lineHeight).ceil();
   }
 
@@ -32,7 +32,7 @@ class TextLayoutUtils {
     );
     textPainter.layout(maxWidth: maxWidth);
 
-    final lineHeight = style.fontSize! * (style.height ?? 1.2);
+    final lineHeight = (style.fontSize ?? 14.0) * (style.height ?? 1.2);
     final targetY = maxLines * lineHeight;
 
     final position = textPainter.getPositionForOffset(Offset(0, targetY));

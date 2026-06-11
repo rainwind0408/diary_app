@@ -216,7 +216,16 @@ class WritingHeatmap extends StatelessWidget {
   int _calcCurrentStreak(DateTime today) {
     int streak = 0;
     DateTime date = today;
-    while (true) {
+
+    // 先检查今天是否有日记
+    final todayStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    if (!entryDates.contains(todayStr)) {
+      // 今天没写，从昨天开始计算
+      date = date.subtract(const Duration(days: 1));
+    }
+
+    while (streak < 365) {
       final dateStr =
           '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       if (!entryDates.contains(dateStr)) break;

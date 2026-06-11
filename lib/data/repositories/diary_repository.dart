@@ -36,8 +36,8 @@ class DiaryRepository {
     final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
-      where: "date(${DatabaseConstants.colCreatedAt}) = ?",
-      whereArgs: [dateStr],
+      where: "${DatabaseConstants.colCreatedAt} LIKE ?",
+      whereArgs: ['$dateStr%'],
       orderBy: '${DatabaseConstants.colCreatedAt} DESC',
     );
     return rows.map((r) => DiaryEntry.fromMap(r)).toList();
@@ -67,12 +67,19 @@ class DiaryRepository {
   Future<int> getStreakDays() async {
     int streak = 0;
     DateTime date = DateTime.now();
-    while (true) {
+
+    // 先检查今天是否有日记
+    final todayEntries = await getEntriesByDate(date);
+    if (todayEntries.isEmpty) {
+      // 今天没写，从昨天开始计算
+      date = date.subtract(const Duration(days: 1));
+    }
+
+    while (streak < 365) {
       final entries = await getEntriesByDate(date);
       if (entries.isEmpty) break;
       streak++;
       date = date.subtract(const Duration(days: 1));
-      if (streak > 365) break; // safety limit
     }
     return streak;
   }
@@ -83,8 +90,8 @@ class DiaryRepository {
     final rows = await db.rawQuery('''
       SELECT COUNT(*) as count, COALESCE(SUM(word_count), 0) as total_words
       FROM ${DatabaseConstants.tableDiaryEntries}
-      WHERE strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}) = ?
-    ''', [monthStr]);
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+    ''', ['$monthStr%']);
     if (rows.isEmpty) return {'count': 0, 'total_words': 0};
     return {
       'count': rows.first['count'] as int,
@@ -110,8 +117,8 @@ class DiaryRepository {
     final pattern = '%"$tag"%';
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
-      where: "date(${DatabaseConstants.colCreatedAt}) = ? AND ${DatabaseConstants.colTags} LIKE ?",
-      whereArgs: [dateStr, pattern],
+      where: "${DatabaseConstants.colCreatedAt} LIKE ? AND ${DatabaseConstants.colTags} LIKE ?",
+      whereArgs: ['$dateStr%', pattern],
       orderBy: '${DatabaseConstants.colCreatedAt} DESC',
     );
     return rows.map((r) => DiaryEntry.fromMap(r)).toList();
@@ -156,8 +163,8 @@ class DiaryRepository {
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
       columns: [DatabaseConstants.colCreatedAt],
-      where: "strftime('%Y-%m', ${DatabaseConstants.colCreatedAt}) = ?",
-      whereArgs: [monthStr],
+      where: "${DatabaseConstants.colCreatedAt} LIKE ?",
+      whereArgs: ['$monthStr%'],
     );
     return rows.map((r) {
       final dt = DateTime.parse(r[DatabaseConstants.colCreatedAt] as String);
@@ -218,7 +225,7 @@ class DiaryRepository {
     final rows = await db.query(
       DatabaseConstants.tableDiaryEntries,
       columns: [DatabaseConstants.colCreatedAt],
-      where: "date(${DatabaseConstants.colCreatedAt}) >= ?",
+      where: "${DatabaseConstants.colCreatedAt} >= ?",
       whereArgs: [startStr],
     );
     return rows.map((r) {

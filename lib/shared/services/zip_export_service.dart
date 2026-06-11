@@ -80,7 +80,6 @@ class ZipExportService {
             srcPath = '${appDir.path}/${img.path}';
           }
           final srcFile = File(srcPath);
-          print('导出图片: srcPath=$srcPath, exists=${await srcFile.exists()}');
           if (await srcFile.exists()) {
             final ext = img.path.split('.').last;
             final newPath = '${entryImagesDir.path}/img_${i + 1}.$ext';

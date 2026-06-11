@@ -104,14 +104,14 @@ class DiaryEntry {
     return DiaryEntry(
       id: map['id'] as int?,
       title: (map['title'] as String?) ?? '无标题',
-      content: map['content'] as String,
+      content: (map['content'] as String?) ?? '',
       mood: (map['mood'] as String?) ?? '',
       moodIntensity: (map['mood_intensity'] as int?) ?? 3,
       moodNote: (map['mood_note'] as String?) ?? '',
       moodLabel: (map['mood_label'] as String?) ?? '',
       wordCount: (map['word_count'] as int?) ?? 0,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      createdAt: _parseDateTime(map['created_at']),
+      updatedAt: _parseDateTime(map['updated_at']),
       isLocked: (map['is_locked'] as int?) == 1,
       pinHash: (map['pin_hash'] as String?) ?? '',
       tags: _parseTags(map['tags']),
@@ -119,6 +119,15 @@ class DiaryEntry {
       audios: PlacedAudio.parseList(map['audios']),
       stickers: _parseStickers(map['stickers']),
     );
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    try {
+      return DateTime.parse(value as String);
+    } catch (_) {
+      return DateTime.now();
+    }
   }
 
   Map<String, dynamic> toJson() => toMap();
