@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/app_dimensions.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/toast.dart';
 import '../services/draft_service.dart';
@@ -11,20 +12,23 @@ import '../../voice_recording/screens/audio_recorder_screen.dart';
 import '../../../data/models/placed_audio.dart';
 import '../../../data/repositories/diary_repository.dart';
 import '../providers/diary_write_provider.dart';
-import '../widgets/diary_page.dart';
+import '../widgets/diary_paper.dart';
 import '../../achievements/providers/achievement_provider.dart';
 import '../../achievements/widgets/achievement_unlock_dialog.dart';
 import '../../mood/widgets/mood_selector.dart';
 import '../../templates/widgets/template_selector.dart';
 import '../widgets/image_picker_bar.dart';
 import '../services/image_service.dart';
-import '../widgets/page_turn_hint.dart';
 import '../../stickers/widgets/sticker_picker.dart';
 import '../../stickers/widgets/sticker_layer.dart';
 import '../../stickers/models/sticker.dart';
 import '../../../data/models/placed_image.dart';
 import '../../diary_detail/screens/diary_detail_screen.dart';
 
+/// 日记编写页（单页）。
+///
+/// 与旧版的关键差异：不再有 `PageView` / 页码 / 翻页提示。
+/// 纸页高度随正文增长，整个书写区是一个 `SingleChildScrollView`。
 class DiaryWriteScreen extends StatefulWidget {
   const DiaryWriteScreen({super.key});
 
@@ -33,61 +37,88 @@ class DiaryWriteScreen extends StatefulWidget {
 }
 
 class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
-  late PageController _pageController;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  late DiaryWriteProvider _provider;
+
+  /// 已同步进控制器的 provider 版本号
+  int _syncedRevision = 0;
+
   bool _checkedDraft = false;
   bool _showedTemplate = false;
   bool _isImageInteracting = false;
   Timer? _imageInteractionTimer;
   bool _hasDraft = false;
-  bool _isLoadingPage = false; // 防止程序修改 controller 时触发 onContentChanged
-  bool _isHandlingPageChange = false; // 防止 onPageChanged 重入
-
-  final ValueNotifier<double> _pageNotifier = ValueNotifier(0);
-  bool _isAnimating = false;
+  DraftData? _pendingDraft;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
-    _pageController.addListener(_onPageScroll);
+    _provider = context.read<DiaryWriteProvider>();
+
+    // 编辑态下，正文在进入本页之前已由详情页 `loadForEdit()` 装好
+    _syncedRevision = _provider.revision;
+    _contentController.text = _provider.content;
+    _provider.addListener(_onProviderChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkDraft();
     });
   }
 
-  void _onPageScroll() {
-    if (!_pageController.hasClients ||
-        !_pageController.position.haveDimensions) return;
+  /// provider 只在「载入 / 清空 / 恢复草稿 / 应用模板」时自增 revision。
+  ///
+  /// 打字路径不会走到这里 —— 这正是避免打断输入法组字、进而丢字的关键。
+  void _onProviderChanged() {
+    final revision = _provider.revision;
+    if (revision == _syncedRevision) return;
+    _syncedRevision = revision;
 
-    final page = _pageController.page ?? 0;
-    _pageNotifier.value = page;
-
-    final isNearInteger = (page - page.round()).abs() < 0.01;
-    if (_isAnimating && isNearInteger) {
-      _isAnimating = false;
-    } else if (!_isAnimating && !isNearInteger) {
-      _isAnimating = true;
+    final text = _provider.content;
+    if (_contentController.text != text) {
+      _contentController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
     }
+
+    // 标题同样跟着换页源走：编辑态取日记标题，清空/保存后归零
+    final entry = _provider.editingEntry;
+    if (entry != null) {
+      final title = entry.title == '无标题' ? '' : entry.title;
+      if (_titleController.text != title) {
+        _titleController.text = title;
+      }
+    } else if (text.isEmpty && _titleController.text.isNotEmpty) {
+      _titleController.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _provider.removeListener(_onProviderChanged);
+    _scrollController.dispose();
+    _titleController.dispose();
+    _contentController.dispose();
+    _imageInteractionTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkDraft() async {
     if (_checkedDraft) return;
     _checkedDraft = true;
 
-    final provider = context.read<DiaryWriteProvider>();
-    if (provider.isEditing) {
-      final title = provider.editingEntry?.title ?? '';
+    if (_provider.isEditing) {
+      final title = _provider.editingEntry?.title ?? '';
       if (title != '无标题') {
         _titleController.text = title;
       }
-      // 加载当前页内容到控制器
-      _loadPageContent(0);
       return;
     }
 
-    final draft = await provider.loadDraft();
+    final draft = await _provider.loadDraft();
     if (!mounted) return;
     if (draft == null) {
       _showTemplateIfNeeded();
@@ -98,14 +129,10 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
     _pendingDraft = draft;
   }
 
-  DraftData? _pendingDraft;
-
   void _restoreDraft() {
-    final provider = context.read<DiaryWriteProvider>();
     if (_pendingDraft != null) {
-      provider.restoreDraft(_pendingDraft!);
+      _provider.restoreDraft(_pendingDraft!);
       _titleController.text = _pendingDraft!.title;
-      _loadPageContent(0);
       _showedTemplate = true;
     }
     setState(() {
@@ -115,8 +142,7 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
   }
 
   Future<void> _dismissDraft() async {
-    final provider = context.read<DiaryWriteProvider>();
-    await provider.discardDraft();
+    await _provider.discardDraft();
     setState(() {
       _hasDraft = false;
       _pendingDraft = null;
@@ -128,100 +154,36 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
     if (_showedTemplate) return;
     _showedTemplate = true;
 
-    final provider = context.read<DiaryWriteProvider>();
-    if (provider.isEditing) return;
-    if (provider.content.trim().isNotEmpty) return;
+    if (_provider.isEditing) return;
+    if (_provider.content.trim().isNotEmpty) return;
 
     final template = await TemplateSelector.show(context);
     if (template != null && mounted) {
-      provider.applyTemplate(template);
-      _loadPageContent(0);
+      _provider.applyTemplate(template);
     }
-  }
-
-  @override
-  void dispose() {
-    _pageController.removeListener(_onPageScroll);
-    _pageController.dispose();
-    _pageNotifier.dispose();
-    _titleController.dispose();
-    _contentController.dispose();
-    _imageInteractionTimer?.cancel();
-    super.dispose();
-  }
-
-  /// 加载指定页内容到控制器
-  void _loadPageContent(int pageIndex) {
-    _isLoadingPage = true;
-    final provider = context.read<DiaryWriteProvider>();
-    final pageText = provider.getPageText(pageIndex);
-    _contentController.text = pageText;
-    _contentController.selection = TextSelection.fromPosition(
-      TextPosition(offset: pageText.length),
-    );
-    _isLoadingPage = false;
-  }
-
-  /// 原子化切页：保存旧页 → 更新页码 → 加载新页 → 一次性重建
-  void _syncAndSwitchPage(int newIndex) {
-    if (_isHandlingPageChange) return;
-    _isHandlingPageChange = true;
-
-    final provider = context.read<DiaryWriteProvider>();
-    final oldIndex = provider.currentPageIndex;
-
-    if (newIndex == oldIndex) {
-      _isHandlingPageChange = false;
-      return;
-    }
-
-    // 1. 保存旧页内容到数组（不触发重建）
-    provider.saveCurrentPageText(_contentController.text);
-
-    // 2. 更新页码 + 确保数组长度（不触发重建）
-    provider.setCurrentPageDirect(newIndex);
-
-    // 3. 加载新页内容到 controller
-    _isLoadingPage = true;
-    final pageText = provider.getPageText(newIndex);
-    _contentController.text = pageText;
-    _contentController.selection = TextSelection.fromPosition(
-      TextPosition(offset: pageText.length),
-    );
-    _isLoadingPage = false;
-
-    // 4. 同步 PageView 滚动位置（会触发 onPageChanged，被 _isHandlingPageChange 挡住）
-    _pageController.jumpToPage(newIndex);
-
-    // 5. 一次性触发重建（此时 controller 已是新页内容）
-    provider.notifyPageChanged();
-
-    _isHandlingPageChange = false;
   }
 
   Future<void> _save() async {
-    final provider = context.read<DiaryWriteProvider>();
+    // 打字路径已实时同步，这里再兜一次底
+    _provider.setContent(_contentController.text);
 
-    // 同步当前页 controller 内容到数组
-    provider.saveCurrentPageText(_contentController.text);
-
-    if (provider.content.trim().isEmpty) {
+    if (_provider.content.trim().isEmpty) {
       Toast().show(context, '日记内容不能为空', ToastType.warning);
       return;
     }
 
     try {
-      final hasMood = provider.mood.isNotEmpty;
-      final wordCount = provider.totalWordCount;
-      final hasImages = provider.allPlacedImages.isNotEmpty;
-      final hasAudios = provider.currentPageAudios.isNotEmpty;
-      final hasTags = provider.tags.isNotEmpty;
+      final hasMood = _provider.mood.isNotEmpty;
+      final wordCount = _provider.totalWordCount;
+      final hasImages = _provider.images.isNotEmpty;
+      final hasAudios = _provider.audios.isNotEmpty;
+      final hasTags = _provider.tags.isNotEmpty;
 
-      final entryId = await provider.save(_titleController.text);
+      final entryId = await _provider.save(_titleController.text);
       if (!mounted) return;
       _titleController.clear();
       _contentController.clear();
-      _pageController.jumpToPage(0);
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _showedTemplate = false;
       _hasDraft = false;
 
@@ -244,11 +206,10 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
   }
 
   void _clear() {
-    final provider = context.read<DiaryWriteProvider>();
-    provider.clear();
+    _provider.clear();
     _titleController.clear();
     _contentController.clear();
-    _pageController.jumpToPage(0);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   Future<void> _checkAchievements({
@@ -355,14 +316,14 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                     message: '有未保存的内容，确定要离开吗？',
                     confirmText: '离开',
                   );
-                  if (confirmed && mounted) {
-                    provider.clear();
-                    Navigator.of(context).pop();
-                  }
-                } else if (mounted) {
+                  if (!context.mounted) return;
+                  if (!confirmed) return;
                   provider.clear();
                   Navigator.of(context).pop();
+                  return;
                 }
+                provider.clear();
+                Navigator.of(context).pop();
               },
             ),
             title: Text(
@@ -390,7 +351,7 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
       ),
       body: Column(
         children: [
-          // Draft recovery banner
+          // 草稿恢复条
           if (_hasDraft)
             MaterialBanner(
               content: Text(
@@ -415,148 +376,71 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                 ),
               ],
             ),
-          // Page content area
+
+          // 书写区：整页滚动，纸页高度随内容增长
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                return Stack(
-                  children: [
-                    PageView.builder(
-                      controller: _pageController,
-                      physics: _isImageInteracting
-                          ? const NeverScrollableScrollPhysics()
-                          : null,
-                      onPageChanged: (index) {
-                        _syncAndSwitchPage(index);
-                      },
-                      itemCount: provider.totalPages + 1, // +1 为空白占位页
-                      itemBuilder: (context, index) {
-                        return ValueListenableBuilder<double>(
-                          valueListenable: _pageNotifier,
-                          builder: (context, page, child) {
-                            final refPage =
-                                _isAnimating ? page : page.roundToDouble();
-                            final delta = index - refPage;
-                            final opacity =
-                                (1 - delta.abs() * 0.3).clamp(0.0, 1.0);
-                            final angle = delta * 0.12;
-
-                            return Transform(
-                              alignment: delta > 0
-                                  ? Alignment.centerLeft
-                                  : Alignment.centerRight,
-                              transform: Matrix4.identity()
-                                ..setEntry(3, 2, 0.001)
-                                ..rotateY(angle),
-                              child: Opacity(
-                                opacity: opacity,
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: DiaryPage(
-                            pageIndex: index,
-                            pageContent: index < provider.totalPages
-                                ? provider.getPageText(index)
-                                : '',
-                            isEditable: index == provider.currentPageIndex,
-                            controller: index == provider.currentPageIndex
-                                ? _contentController
-                                : null,
-                            initialTitle:
-                                index == 0 ? _titleController.text : null,
-                            onTitleChanged: (value) {
-                              _titleController.text = value;
-                              provider.markDirty();
-                            },
-                            onContentChanged: (currentText, overflowText, width) {
-                              if (_isLoadingPage) return;
-                              final oldPageIndex = provider.currentPageIndex;
-                              final result = provider.updateCurrentPageText(currentText, overflowText, width);
-                              final newPageIndex = result['pageIndex'] as int;
-                              final newText = result['text'] as String;
-
-                              _isLoadingPage = true;
-                              if (newPageIndex != oldPageIndex) {
-                                // 光标跨页：跳转到新页
-                                _contentController.text = newText;
-                                _contentController.selection = TextSelection.fromPosition(
-                                  TextPosition(offset: newText.length),
-                                );
-                                _pageController.jumpToPage(newPageIndex);
+                return SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: _isImageInteracting
+                      ? const NeverScrollableScrollPhysics()
+                      : null,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.pagePaddingH,
+                    vertical: AppDimensions.md,
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      DiaryPaper(
+                        minHeight: constraints.maxHeight - AppDimensions.md * 2,
+                        titleController: _titleController,
+                        contentController: _contentController,
+                        wordCount: provider.wordCount,
+                        mediaExtent: provider.mediaExtent,
+                        onTitleChanged: (_) => provider.markDirty(),
+                        onContentChanged: provider.setContent,
+                        images: provider.images,
+                        audios: provider.audios,
+                        onImagesChanged: provider.updateImages,
+                        onAudiosChanged: provider.updateAudios,
+                        onInteractionStart: () {
+                          _isImageInteracting = true;
+                          _imageInteractionTimer?.cancel();
+                          _imageInteractionTimer = Timer(
+                            const Duration(seconds: 5),
+                            () {
+                              if (_isImageInteracting) {
+                                setState(() => _isImageInteracting = false);
                               }
-                              _isLoadingPage = false;
                             },
-                            onImagesChanged: (images) {
-                              provider.updateCurrentPageImages(images);
-                            },
-                            onAudiosChanged: (audios) {
-                              provider.updateCurrentPageAudios(audios);
-                            },
-                            onInteractionStart: () {
-                              _isImageInteracting = true;
-                              _imageInteractionTimer?.cancel();
-                              _imageInteractionTimer = Timer(
-                                const Duration(seconds: 5),
-                                () {
-                                  if (_isImageInteracting) {
-                                    setState(() => _isImageInteracting = false);
-                                  }
-                                },
-                              );
-                            },
-                            onInteractionEnd: () {
-                              _isImageInteracting = false;
-                              _imageInteractionTimer?.cancel();
-                            },
-                            onImageView: _showImageViewer,
-                            images: provider.currentPageImages,
-                            audios: provider.currentPageAudios,
-                          ),
-                        );
-                      },
-                    ),
-
-                    // Sticker layer
-                    Positioned.fill(
-                      child: StickerLayer(
-                        stickers: provider.stickers,
-                        onStickerUpdated: (index, sticker) =>
-                            provider.updateSticker(index, sticker),
-                        onStickerDeleted: (index) =>
-                            provider.removeSticker(index),
+                          );
+                        },
+                        onInteractionEnd: () {
+                          _isImageInteracting = false;
+                          _imageInteractionTimer?.cancel();
+                        },
+                        onImageView: _showImageViewer,
                       ),
-                    ),
-
-                    // Page turn hint
-                    Positioned(
-                      bottom: 8,
-                      right: 16,
-                      child: PageTurnHint(
-                          visible: provider.totalPages > 1 &&
-                              provider.currentPageIndex == provider.totalPages - 1),
-                    ),
-
-                    // Page indicator
-                    if (provider.totalPages > 1)
-                      Positioned(
-                        bottom: 8,
-                        left: 16,
-                        child: Text(
-                          '${(provider.currentPageIndex + 1).clamp(1, provider.totalPages)} / ${provider.totalPages}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: subtleColor.withValues(alpha: 0.5),
-                          ),
+                      // 贴纸图层：与纸页同坐标系，随纸页一起滚动
+                      Positioned.fill(
+                        child: StickerLayer(
+                          stickers: provider.stickers,
+                          onStickerUpdated: (index, sticker) =>
+                              provider.updateSticker(index, sticker),
+                          onStickerDeleted: (index) =>
+                              provider.removeSticker(index),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),
           ),
 
-          // Bottom toolbar
+          // 底部工具栏
           _buildBottomToolbar(provider, isDark, accentColor, subtleColor),
         ],
       ),
@@ -668,8 +552,7 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                   final path = await ImagePickerBar.pickFromCamera();
                   if (path != null && mounted) {
                     final size = MediaQuery.of(context).size;
-                    final offset =
-                        provider.currentPageImages.length * 30.0;
+                    final offset = provider.images.length * 30.0;
                     provider.addPlacedImage(
                         path, size.width / 2 + offset, size.height / 3 + offset);
                   }
@@ -683,8 +566,7 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                   final path = await ImagePickerBar.pickFromGallery();
                   if (path != null && mounted) {
                     final size = MediaQuery.of(context).size;
-                    final offset =
-                        provider.currentPageImages.length * 30.0;
+                    final offset = provider.images.length * 30.0;
                     provider.addPlacedImage(
                         path, size.width / 2 + offset, size.height / 3 + offset);
                   }
@@ -698,8 +580,7 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                   final record = await AudioRecorderScreen.show(context);
                   if (record != null && mounted) {
                     final size = MediaQuery.of(context).size;
-                    final existingCount = provider.currentPageAudios.length;
-                    final offset = existingCount * 30.0;
+                    final offset = provider.audios.length * 30.0;
                     final placed = PlacedAudio(
                       path: record.path,
                       durationMs: record.durationMs,
@@ -733,7 +614,6 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                   final template = await TemplateSelector.show(context);
                   if (template != null && mounted) {
                     provider.applyTemplate(template);
-                    _loadPageContent(0);
                   }
                 },
                 color: accentColor,
@@ -745,11 +625,14 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
                 color: subtleColor,
               ),
               const Spacer(),
-              Text(
-                '${provider.totalWordCount}字',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: subtleColor.withValues(alpha: 0.6),
+              ValueListenableBuilder<int>(
+                valueListenable: provider.wordCount,
+                builder: (_, count, __) => Text(
+                  '$count字',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: subtleColor.withValues(alpha: 0.6),
+                  ),
                 ),
               ),
             ],

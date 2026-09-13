@@ -1,5 +1,5 @@
 name: diary_app
-description: 个人日记应用 - 古董笔记本风格
+description: 折花日记 - 水彩可爱笔记本风格的个人日记应用（Android）
 publish_to: 'none'
 version: 3.3.1+34
 
@@ -39,7 +39,7 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: "assets/icon/app_icon_new.png"
   adaptive_icon_background: "#FFF0E0"
   adaptive_icon_foreground: "assets/icon/app_icon_new.png"

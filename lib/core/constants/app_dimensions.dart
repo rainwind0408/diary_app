@@ -61,10 +61,9 @@ class AppDimensions {
   static const double bottomNavIconSize = 24.0;
   static const double bottomNavRadius = 16.0;
 
-  // ===== 翻页 =====
-  static const int maxPages = 10;
-  static const int maxLinesPerPage = 15; // 每页最大行数
-  static const double swipeThreshold = 50.0;
+  // ===== 书写纸 =====
+  // 单页化后已移除「每页 15 行 / 最多 10 页」相关常量：
+  // 正文不再分页，纸页高度由内容自行增长。
 
   // ===== 动画时长 (毫秒) =====
   static const int tabSwitchDuration = 300;

@@ -188,7 +188,6 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
   Widget _buildTopBar(bool isDark, DiaryEntry entry, dynamic weather) {
     final subtleColor = isDark ? AppColors.darkSubtleText : AppColors.subtleText;
     final accentColor = isDark ? AppColors.darkAccentPink : AppColors.accentPink;
-    final cardBg = isDark ? AppColors.darkCardBackground : AppColors.cardBackground;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
