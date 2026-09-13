@@ -15,7 +15,6 @@ class AppDimensions {
   static const double cardPaddingH = 20.0;
   static const double cardPaddingV = 16.0;
   static const double cardMarginBottom = 12.0;
-  static const double contentMaxHeight = 120.0;
   static const double fadeHeight = 36.0;
 
   // ===== 按钮 =====
@@ -66,20 +65,15 @@ class AppDimensions {
   // 正文不再分页，纸页高度由内容自行增长。
 
   // ===== 动画时长 (毫秒) =====
-  static const int tabSwitchDuration = 300;
-  static const int pageTurnDuration = 350;
-  static const int cardEntranceDuration = 400;
-  static const int cardExpandDuration = 350;
+  // 只保留实际用到的两个。原先另有 8 个常量
+  // (tabSwitchDuration / pageTurnDuration / cardEntranceDuration / cardExpandDuration /
+  //  toastExitDuration / deleteAnimDuration / staggerDelay / pressAnimDuration)
+  // 全项目零引用，其中 pageTurnDuration 属于已废弃的翻页功能，已一并移除。
   static const int toastEnterDuration = 350;
   static const int toastDisplayDuration = 2500;
-  static const int toastExitDuration = 400;
-  static const int deleteAnimDuration = 300;
-  static const int staggerDelay = 80;
-  static const int pressAnimDuration = 100;
 
   // ===== 水平卡片轮播 =====
   static const double carouselCardWidth = 280.0;
-  static const double carouselCardHeight = 360.0;
   static const double carouselCardRadius = 24.0;
   static const double carouselCardGap = 16.0;
 }
