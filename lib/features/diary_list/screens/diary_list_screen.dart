@@ -13,12 +13,13 @@ import '../../weather/providers/seasonal_provider.dart';
 import '../../achievements/providers/achievement_provider.dart';
 import '../providers/date_filter_provider.dart';
 import '../providers/diary_list_provider.dart';
-import '../widgets/misc/date_strip.dart';
 import '../widgets/misc/empty_state.dart';
 import '../widgets/filters/search_bar.dart';
 import '../widgets/filters/tag_cloud.dart';
 import '../widgets/misc/card_flow_view.dart';
 import '../widgets/misc/greeting_banner.dart';
+import '../widgets/misc/cover_photo_banner.dart';
+import '../widgets/misc/collapsible_calendar.dart';
 import '../services/greeting_service.dart';
 import '../../../data/models/diary_entry.dart';
 
@@ -36,23 +37,49 @@ class DiaryListScreenState extends State<DiaryListScreen> {
   int _streakDays = 0;
   List<bool> _weekDays = [];
 
+  /// 当前展示月份的封面图路径（首张为「当前日期」的图片）
+  List<String> _coverImages = [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadEntries();
       _loadStreakAndWeek();
+      _loadCoverImages();
     });
   }
 
   /// 外部调用：刷新连续天数和本周数据
   void refreshStreak() {
     _loadStreakAndWeek();
+    _loadCoverImages();
   }
 
   void _loadEntries() {
     final date = context.read<DateFilterProvider>().selectedDate;
     context.read<DiaryListProvider>().loadEntries(date);
+  }
+
+  /// 日期被选中（来自日历卡片）
+  void _onDatePicked(DateTime date) {
+    context.read<DateFilterProvider>().setDate(date);
+    _loadEntries();
+    _loadCoverImages();
+  }
+
+  /// 加载当前月份的封面图
+  Future<void> _loadCoverImages() async {
+    final date = context.read<DateFilterProvider>().selectedDate;
+    final repo = DiaryRepository();
+    try {
+      final paths = await repo.getMonthImagePaths(date.year, date.month);
+      if (!mounted) return;
+      setState(() => _coverImages = paths);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _coverImages = []);
+    }
   }
 
   Future<void> _loadStreakAndWeek() async {
@@ -74,92 +101,6 @@ class DiaryListScreenState extends State<DiaryListScreen> {
       _streakDays = streak;
       _weekDays = weekDays;
     });
-  }
-
-  void _showCalendar(DateFilterProvider dateFilter) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    DateTime tempMonth = dateFilter.currentMonth;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 简化的日历选择器
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      onPressed: () => setSheetState(() {
-                        tempMonth = DateTime(tempMonth.year, tempMonth.month - 1);
-                      }),
-                      icon: const Icon(Icons.chevron_left),
-                    ),
-                    Text(
-                      '${tempMonth.year}年${tempMonth.month}月',
-                      style: AppTextStyles.cardTitle,
-                    ),
-                    IconButton(
-                      onPressed: () => setSheetState(() {
-                        tempMonth = DateTime(tempMonth.year, tempMonth.month + 1);
-                      }),
-                      icon: const Icon(Icons.chevron_right),
-                    ),
-                  ],
-                ),
-              ),
-              // 月份选择按钮
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(12, (i) {
-                  final isCurrentMonth = i + 1 == tempMonth.month;
-                  return GestureDetector(
-                    onTap: () {
-                      dateFilter.setDate(DateTime(tempMonth.year, i + 1, 1));
-                      _loadEntries();
-                      Navigator.pop(ctx);
-                    },
-                    child: Container(
-                      width: 60,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isCurrentMonth
-                            ? AppColors.accentPink.withValues(alpha: 0.15)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${i + 1}月',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isCurrentMonth
-                              ? AppColors.accentPink
-                              : AppColors.subtleText,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _toggleSearch() {
@@ -315,87 +256,128 @@ class DiaryListScreenState extends State<DiaryListScreen> {
     final listProvider = context.watch<DiaryListProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Column(
-      children: [
-        // AppBar（花体标题 + 搜索）
-        _buildAppBar(isDark, listProvider),
-
-        // 问候语横幅（仅非搜索模式）
-        if (!_searchMode) _buildGreetingBanner(),
-
-        // 搜索栏或日期条
-        if (_searchMode)
+    // 搜索模式下只保留搜索框与结果列表，隐藏封面图与日历
+    if (_searchMode) {
+      return Column(
+        children: [
+          _buildAppBar(isDark, listProvider),
           DiarySearchBar(
             onSearch: (keyword) => listProvider.searchEntries(keyword),
             onClear: () {
               listProvider.clearSearch();
               _loadEntries();
             },
-          )
-        else
-          DateStrip(
-            selectedDate: dateFilter.selectedDate,
-            onDateSelected: (date) {
-              dateFilter.setDate(date);
-              _loadEntries();
-            },
-            onLongPress: () => _showCalendar(dateFilter),
           ),
-
-        // 标签筛选
-        if (!_searchMode)
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 4, top: 4, bottom: 4),
-            child: TagCloud(
-              selectedTag: listProvider.selectedTag,
-              date: dateFilter.selectedDate,
-              onTagSelected: (tag) {
-                listProvider.filterByTag(tag, date: dateFilter.selectedDate);
-                if (tag == null) _loadEntries();
-              },
+          if (listProvider.searchKeyword.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Text(
+                    '搜索 "${listProvider.searchKeyword}" - 找到 ${listProvider.entries.length} 条结果',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          isDark ? AppColors.darkLabelText : AppColors.labelText,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          Expanded(child: _buildContent(listProvider, isDark)),
+        ],
+      );
+    }
 
-        // 搜索结果提示
-        if (_searchMode && listProvider.searchKeyword.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                Text(
-                  '搜索 "${listProvider.searchKeyword}" - 找到 ${listProvider.entries.length} 条结果',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? AppColors.darkLabelText : AppColors.labelText,
+    // 常规模式：AppBar 固定，其下整体可滚动。
+    // 封面图卡片与日历头条常驻；展开日历时页面自然上推，
+    // 卡片轮播区保持在 viewport 最小高度之上，不会被压塌。
+    return Column(
+      children: [
+        _buildAppBar(isDark, listProvider),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 列表内容至少占满剩余视口，避免卡片区被挤没
+              final minContentHeight =
+                  (constraints.maxHeight * 0.45).clamp(180.0, 420.0);
+
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: Column(
+                    children: [
+                      _buildGreetingBanner(),
+
+                      CoverPhotoBanner(
+                        imagePaths: _coverImages,
+                        monthLabel:
+                            '${dateFilter.selectedDate.year}年${dateFilter.selectedDate.month}月',
+                      ),
+
+                      // 日期导航由日历卡片唯一承担：点头条展开月历网格选日。
+                      // 封面图下方不再叠加任何重复的月份文案或日期条。
+                      CollapsibleCalendar(
+                        selectedDate: dateFilter.selectedDate,
+                        onDateSelected: _onDatePicked,
+                        onMonthChanged: (_) => _loadCoverImages(),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            left: 16, right: 4, top: 4, bottom: 4),
+                        child: TagCloud(
+                          selectedTag: listProvider.selectedTag,
+                          date: dateFilter.selectedDate,
+                          onTagSelected: (tag) {
+                            listProvider.filterByTag(tag,
+                                date: dateFilter.selectedDate);
+                            if (tag == null) _loadEntries();
+                          },
+                        ),
+                      ),
+
+                      // 日记内容区：保证最小高度，让卡片轮播有足够空间
+                      SizedBox(
+                        height: minContentHeight,
+                        child: _buildContent(listProvider, isDark),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-
-        // 内容区域（水平轮播 or 搜索列表）
-        Expanded(
-          child: listProvider.isLoading
-              ? Center(
-                  child: CircularProgressIndicator(
-                    color: isDark ? AppColors.darkAccentPink : AppColors.accentPink,
-                  ),
-                )
-              : listProvider.entries.isEmpty
-                  ? EmptyState(
-                      message: _searchMode ? '未找到匹配的日记' : null,
-                    )
-                  : _searchMode
-                      ? _buildSearchList(listProvider, isDark)
-                      : CardFlowView(
-                          entries: listProvider.entries,
-                          onEdit: (DiaryEntry entry) => _handleEdit(entry),
-                          onDelete: (DiaryEntry entry) => _handleDelete(entry, listProvider),
-                          onLock: (DiaryEntry entry) => _handleLock(entry),
-                          onUnlock: (DiaryEntry entry) => _handleUnlock(entry),
-                        ),
         ),
       ],
+    );
+  }
+
+  /// 内容区域：加载中 / 空态 / 搜索结果列表 / 卡片轮播
+  Widget _buildContent(DiaryListProvider listProvider, bool isDark) {
+    if (listProvider.isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: isDark ? AppColors.darkAccentPink : AppColors.accentPink,
+        ),
+      );
+    }
+    if (listProvider.entries.isEmpty) {
+      return EmptyState(
+        message: _searchMode ? '未找到匹配的日记' : null,
+      );
+    }
+    if (_searchMode) {
+      return _buildSearchList(listProvider, isDark);
+    }
+    return CardFlowView(
+      entries: listProvider.entries,
+      onEdit: (DiaryEntry entry) => _handleEdit(entry),
+      onDelete: (DiaryEntry entry) => _handleDelete(entry, listProvider),
+      onLock: (DiaryEntry entry) => _handleLock(entry),
+      onUnlock: (DiaryEntry entry) => _handleUnlock(entry),
     );
   }
 

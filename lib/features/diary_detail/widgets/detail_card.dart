@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../data/models/diary_entry.dart';
 import '../../../data/models/placed_audio.dart';
+import '../../../shared/widgets/full_image_viewer.dart';
 import '../../diary_write/services/audio_service.dart';
 import '../../diary_write/services/image_service.dart';
 
@@ -277,32 +278,7 @@ class _DetailCardState extends State<DetailCard> {
   }
 
   void _showFullImage(BuildContext context, File file) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (_) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
-        child: Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 5.0,
-                child: Image.file(file, fit: BoxFit.contain),
-              ),
-            ),
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    FullImageViewer.show(context, file);
   }
 
   Widget _buildAudioSection(BuildContext context, List<PlacedAudio> audios, Color accentColor, Color subtleColor) {

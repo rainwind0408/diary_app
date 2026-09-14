@@ -172,6 +172,95 @@ class DiaryRepository {
     }).toSet();
   }
 
+  /// 整月「每天篇数 + 首条心情」的批量统计。
+  ///
+  /// 用一条 `GROUP BY substr(created_at, 1, 10)` 拿完整个月，
+  /// 替代「先查有日记的日期、再逐天 getEntriesByDate」的 N+1 写法。
+  /// 返回 `{日: (count: 篇数, mood: 当天首条日记的心情 emoji)}`，
+  /// 心情可能为空字符串（当天日记未选心情）。
+  Future<Map<int, ({int count, String mood})>> getMonthDayStats(
+    int year,
+    int month,
+  ) async {
+    final db = await _dbHelper.database;
+    final monthStr = '$year-${month.toString().padLeft(2, '0')}';
+    final rows = await db.rawQuery(
+      '''
+      SELECT substr(${DatabaseConstants.colCreatedAt}, 1, 10) AS day_key,
+             COUNT(*) AS cnt,
+             MAX(${DatabaseConstants.colMood}) AS mood
+      FROM ${DatabaseConstants.tableDiaryEntries}
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+      GROUP BY day_key
+      ''',
+      ['$monthStr%'],
+    );
+
+    final stats = <int, ({int count, String mood})>{};
+    for (final row in rows) {
+      final key = row['day_key'] as String?;
+      if (key == null || key.length < 10) continue;
+      final day = int.tryParse(key.substring(8, 10));
+      if (day == null) continue;
+      stats[day] = (
+        count: (row['cnt'] as int?) ?? 0,
+        mood: (row['mood'] as String?) ?? '',
+      );
+    }
+    return stats;
+  }
+
+  /// 整月日记的图片路径，按时间倒序；「今天」的图片排在最前。
+  ///
+  /// 用于首页顶部封面图卡片的轮播。日记里的图片是画布绝对定位的贴图，
+  /// 这里只取 `path` 字段，忽略 `dx/dy/rotation` 等排版数据。
+  ///
+  /// [todayFirst] 传 true 时，把 created_at 落在今天的图片提到列表首位；
+  /// 今天没有图片则保持纯时间倒序。
+  Future<List<String>> getMonthImagePaths(
+    int year,
+    int month, {
+    bool todayFirst = true,
+  }) async {
+    final entries = await getEntriesByMonth(year, month);
+    final today = DateTime.now();
+
+    final todayPaths = <String>[];
+    final otherPaths = <String>[];
+
+    for (final entry in entries) {
+      if (entry.isLocked || entry.images.isEmpty) continue;
+      final isToday = entry.createdAt.year == today.year &&
+          entry.createdAt.month == today.month &&
+          entry.createdAt.day == today.day;
+      for (final image in entry.images) {
+        if (image.path.isEmpty) continue;
+        if (todayFirst && isToday) {
+          todayPaths.add(image.path);
+        } else {
+          otherPaths.add(image.path);
+        }
+      }
+    }
+
+    return [...todayPaths, ...otherPaths];
+  }
+
+  /// 整月日记，按创建时间倒序。
+  ///
+  /// 供日历 / 封面图这类「月度视图」使用，避免为了拿图片而 `getAllEntries()` 全表加载。
+  Future<List<DiaryEntry>> getEntriesByMonth(int year, int month) async {
+    final db = await _dbHelper.database;
+    final monthStr = '$year-${month.toString().padLeft(2, '0')}';
+    final rows = await db.query(
+      DatabaseConstants.tableDiaryEntries,
+      where: "${DatabaseConstants.colCreatedAt} LIKE ?",
+      whereArgs: ['$monthStr%'],
+      orderBy: '${DatabaseConstants.colCreatedAt} DESC',
+    );
+    return rows.map((r) => DiaryEntry.fromMap(r)).toList();
+  }
+
   Future<void> updateLockStatus(int id, bool isLocked, String pinHash) async {
     final db = await _dbHelper.database;
     await db.update(
