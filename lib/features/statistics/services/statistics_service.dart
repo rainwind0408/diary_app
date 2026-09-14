@@ -1,3 +1,4 @@
+import '../../../data/models/diary_entry.dart';
 import '../../../data/repositories/diary_repository.dart';
 
 class StatisticsService {
@@ -68,5 +69,41 @@ class StatisticsService {
   /// 连续写作天数
   static Future<int> getStreakDays() {
     return _repo.getStreakDays();
+  }
+
+  // ── 年报所需（全部按年聚合，不加载 entry 实体）──
+
+  /// 某年的篇数 / 字数 / 有日记的天数
+  static Future<({int entries, int words, int activeDays})> getYearSummary(
+    int year,
+  ) {
+    return _repo.getYearSummary(year);
+  }
+
+  /// 某年的小时分布 {0..23: count}
+  static Future<Map<int, int>> getYearHourDistribution(int year) {
+    return _repo.getYearHourDistribution(year);
+  }
+
+  /// 某年最主要的心情
+  static Future<({String mood, int count})?> getTopMoodOfYear(int year) {
+    return _repo.getTopMoodOfYear(year);
+  }
+
+  /// 某年字数最多的那篇日记（用于「最值得重读」）
+  static Future<DiaryEntry?> getLongestEntryOfYear(int year) {
+    return _repo.getLongestEntryOfYear(year);
+  }
+
+  /// 某年任意一段最长的连续写作天数
+  static Future<int> getLongestStreakOfYear(int year) {
+    return _repo.getLongestStreakOfYear(year);
+  }
+
+  /// 某年每天的字数与心情，供星座图绘制
+  static Future<Map<int, ({int words, String mood})>> getYearDailyStats(
+    int year,
+  ) {
+    return _repo.getYearDailyStats(year);
   }
 }

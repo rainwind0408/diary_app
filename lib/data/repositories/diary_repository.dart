@@ -322,4 +322,179 @@ class DiaryRepository {
       return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     }).toSet();
   }
+
+  /// 某年的汇总：总篇数、总字数、有日记的天数
+  ///
+  /// 全部用 SQL 聚合，**不加载任何 entry 实体** —— 年报页只需要几个数字，
+  /// 没必要为此把整年的正文读进内存。
+  Future<({int entries, int words, int activeDays})> getYearSummary(
+    int year,
+  ) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT COUNT(*) AS cnt,
+             COALESCE(SUM(${DatabaseConstants.colWordCount}), 0) AS words,
+             COUNT(DISTINCT substr(${DatabaseConstants.colCreatedAt}, 1, 10)) AS days
+      FROM ${DatabaseConstants.tableDiaryEntries}
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+      ''',
+      ['$year-%'],
+    );
+    if (rows.isEmpty) return (entries: 0, words: 0, activeDays: 0);
+    final r = rows.first;
+    return (
+      entries: (r['cnt'] as int?) ?? 0,
+      words: (r['words'] as int?) ?? 0,
+      activeDays: (r['days'] as int?) ?? 0,
+    );
+  }
+
+  /// 某年各小时的写作次数分布：{0..23: count}
+  ///
+  /// 用 `substr(created_at, 12, 2)` 取小时位，一次拿完。
+  Future<Map<int, int>> getYearHourDistribution(int year) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT substr(${DatabaseConstants.colCreatedAt}, 12, 2) AS hh,
+             COUNT(*) AS cnt
+      FROM ${DatabaseConstants.tableDiaryEntries}
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+      GROUP BY hh
+      ''',
+      ['$year-%'],
+    );
+    final dist = <int, int>{};
+    for (final row in rows) {
+      final h = int.tryParse((row['hh'] as String?) ?? '');
+      if (h == null) continue;
+      dist[h] = (row['cnt'] as int?) ?? 0;
+    }
+    return dist;
+  }
+
+  /// 某年出现最多的心情：返回 (emoji, 次数)；无数据返回 null
+  Future<({String mood, int count})?> getTopMoodOfYear(int year) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT ${DatabaseConstants.colMood} AS m, COUNT(*) AS cnt
+      FROM ${DatabaseConstants.tableDiaryEntries}
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+        AND ${DatabaseConstants.colMood} != ''
+      GROUP BY m
+      ORDER BY cnt DESC
+      LIMIT 1
+      ''',
+      ['$year-%'],
+    );
+    if (rows.isEmpty) return null;
+    final m = rows.first['m'] as String?;
+    if (m == null || m.isEmpty) return null;
+    return (mood: m, count: (rows.first['cnt'] as int?) ?? 0);
+  }
+
+  /// 某一年的「最值得重读」那一篇：字数最多的日记
+  ///
+  /// 只 select 必要字段，避免把整年正文都读出来。
+  Future<DiaryEntry?> getLongestEntryOfYear(int year) async {
+    final db = await _dbHelper.database;
+    final rows = await db.query(
+      DatabaseConstants.tableDiaryEntries,
+      where: '${DatabaseConstants.colCreatedAt} LIKE ? AND '
+          '${DatabaseConstants.colIsLocked} = 0',
+      whereArgs: ['$year-%'],
+      orderBy: '${DatabaseConstants.colWordCount} DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return DiaryEntry.fromMap(rows.first);
+  }
+
+  /// 某年最长的连续写作天数
+  ///
+  /// 与 `getStreakDays()` 不同：那个只看「到今天为止」的当前连续，
+  /// 这个要找出全年里任意一段最长的连续记录。
+  ///
+  /// 实现：一次查出全年有日记的日期集合，再在内存里扫一遍求最长连续段。
+  /// 一年最多 366 个日期，内存扫描代价可忽略，且**只查一次库**。
+  Future<int> getLongestStreakOfYear(int year) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT DISTINCT substr(${DatabaseConstants.colCreatedAt}, 1, 10) AS d
+      FROM ${DatabaseConstants.tableDiaryEntries}
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+      ORDER BY d ASC
+      ''',
+      ['$year-%'],
+    );
+    if (rows.isEmpty) return 0;
+
+    final days = <DateTime>[];
+    for (final row in rows) {
+      final s = row['d'] as String?;
+      if (s == null) continue;
+      final dt = DateTime.tryParse(s);
+      if (dt != null) days.add(DateTime(dt.year, dt.month, dt.day));
+    }
+    if (days.isEmpty) return 0;
+
+    var best = 1;
+    var current = 1;
+    for (var i = 1; i < days.length; i++) {
+      final diff = days[i].difference(days[i - 1]).inDays;
+      if (diff == 1) {
+        current++;
+        if (current > best) best = current;
+      } else {
+        current = 1;
+      }
+    }
+    return best;
+  }
+
+  /// 某年「每天的字数 + 代表心情」，供星座图绘制
+  ///
+  /// 一条 `GROUP BY substr(created_at,1,10)` 拿完全年，
+  /// 返回 `{日序号(1~366): (words, mood, day)}`。
+  ///
+  /// 心情取当天首条**有心情**的日记（`MIN` 是稳定选择，
+  /// 避免同一天多篇日记导致每帧颜色抖动）。
+  Future<Map<int, ({int words, String mood})>> getYearDailyStats(
+    int year,
+  ) async {
+    final db = await _dbHelper.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT substr(${DatabaseConstants.colCreatedAt}, 1, 10) AS d,
+             COALESCE(SUM(${DatabaseConstants.colWordCount}), 0) AS words,
+             COALESCE(
+               MAX(CASE WHEN ${DatabaseConstants.colMood} != ''
+                        THEN ${DatabaseConstants.colMood} END),
+               ''
+             ) AS mood
+      FROM ${DatabaseConstants.tableDiaryEntries}
+      WHERE ${DatabaseConstants.colCreatedAt} LIKE ?
+      GROUP BY d
+      ''',
+      ['$year-%'],
+    );
+
+    final stats = <int, ({int words, String mood})>{};
+    final jan1 = DateTime(year, 1, 1);
+    for (final row in rows) {
+      final s = row['d'] as String?;
+      if (s == null) continue;
+      final dt = DateTime.tryParse(s);
+      if (dt == null) continue;
+      final dayOfYear = dt.difference(jan1).inDays + 1;
+      stats[dayOfYear] = (
+        words: (row['words'] as int?) ?? 0,
+        mood: (row['mood'] as String?) ?? '',
+      );
+    }
+    return stats;
+  }
 }

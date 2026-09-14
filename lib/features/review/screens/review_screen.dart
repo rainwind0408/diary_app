@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../data/models/diary_entry.dart';
 import '../../../data/repositories/diary_repository.dart';
 import '../../diary_list/providers/diary_list_provider.dart';
 import '../../statistics/providers/statistics_provider.dart';
+import '../../statistics/services/statistics_service.dart';
 import '../../statistics/widgets/mood_trend_chart.dart';
 import '../../statistics/widgets/mood_distribution_chart.dart';
 import '../../statistics/widgets/word_count_trend.dart';
@@ -12,6 +14,9 @@ import '../../statistics/widgets/tag_cloud_widget.dart';
 import '../widgets/time_distribution.dart';
 import '../widgets/yearly_heatmap.dart';
 import '../widgets/calendar_view.dart';
+import '../widgets/most_memorable_card.dart';
+import '../widgets/diary_constellation.dart';
+import 'yearly_report_screen.dart';
 
 class _StreakMilestone {
   final int days;
@@ -43,33 +48,65 @@ class ReviewScreen extends StatefulWidget {
 
 class _ReviewScreenState extends State<ReviewScreen> {
   final DiaryRepository _repository = DiaryRepository();
-  List<bool> _weekDays = [];
   bool _weekLoading = true;
+
+  /// 本周写作情况：从「周日」起的连续 7 天，`true` 表示那天有记录
+  ///
+  /// 注意起算日是**周日**（`weekday % 7` 让周日的 0 落在首位），
+  /// 与 `_buildWeekCard` 里 `['日','一',...]` 的星期标签顺序一致。
+  List<bool> _weekDays = [];
+
+  /// 全年每天的字数与心情，供星座图
+  Map<int, ({int words, String mood})> _dailyStats = {};
+
+  /// 全年字数最多的一篇，供「最值得重读」
+  DiaryEntry? _highlight;
 
   @override
   void initState() {
     super.initState();
-    _loadWeekData();
+    _loadReviewExtras();
   }
 
-  Future<void> _loadWeekData() async {
+  /// 加载回顾页专属数据（provider 不提供的部分）
+  ///
+  /// 三件事并发：
+  /// 1. 本周哪几天有记录 —— 用一次 `getMonthDayStats` 拿整月，**不逐天查库**
+  /// 2. 全年每日字数+心情（星座图）
+  /// 3. 全年字数最多的一篇（最值得重读）
+  Future<void> _loadReviewExtras() async {
     final now = DateTime.now();
+    final year = now.year;
+
+    final results = await Future.wait([
+      _repository.getMonthDayStats(now.year, now.month),
+      StatisticsService.getYearDailyStats(year),
+      StatisticsService.getLongestEntryOfYear(year),
+    ]);
+    if (!mounted) return;
+
+    final monthStats =
+        results[0] as Map<int, ({int count, String mood})>;
+    final dailyStats =
+        results[1] as Map<int, ({int words, String mood})>;
+    final highlight = results[2] as DiaryEntry?;
+
+    // 本周：从本周日到今天，看哪几天在 monthStats 里
     final startOfWeek = now.subtract(Duration(days: now.weekday % 7));
-    final weekDays = List.filled(7, false);
+    final weekDays = <bool>[];
     for (int i = 0; i < 7; i++) {
       final date = startOfWeek.add(Duration(days: i));
-      final entryDays =
-          await _repository.getEntryDatesInMonth(date.year, date.month);
-      if (entryDays.contains(date.day)) {
-        weekDays[i] = true;
-      }
+      // 跨月时该天不在本月统计里 → 视为无记录（回退不查库）
+      final inMonth = date.year == now.year && date.month == now.month;
+      weekDays.add(inMonth && monthStats.containsKey(date.day));
     }
-    if (mounted) {
-      setState(() {
-        _weekDays = weekDays;
-        _weekLoading = false;
-      });
-    }
+
+    setState(() {
+      _weekDays = weekDays;
+      _dailyStats = dailyStats;
+      _highlight = highlight;
+      _weekLoading = false;
+    });
   }
 
   @override
@@ -92,6 +129,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ),
               ),
               const Spacer(),
+              // 年报入口
+              YearReportButton(year: DateTime.now().year),
+              const SizedBox(width: 10),
               // 趋势天数切换
               _TrendDaysSelector(
                 currentDays: provider.trendDays,
@@ -112,6 +152,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
               : ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
+                    // 最值得重读：整个页面唯一露出正文的地方，放最前面
+                    if (_highlight != null) ...[
+                      MostMemorableCard(
+                        entry: _highlight!,
+                        onRead: () => openHighlightEntry(context, _highlight!),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
                     // Streak section
                     _buildStreakCard(isDark, provider.streakDays),
                     const SizedBox(height: 20),
@@ -127,6 +176,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     // Calendar view
                     const CalendarView(),
                     const SizedBox(height: 20),
+
+                    // 日记星座：圆形年盘替代方格式热力图
+                    if (_dailyStats.isNotEmpty) ...[
+                      DiaryConstellation(
+                        dailyStats: _dailyStats,
+                        isLeapYear: isLeapYear(DateTime.now().year),
+                      ),
+                      const SizedBox(height: 20),
+                    ] else if (provider.yearlyDates.isNotEmpty) ...[
+                      // 极端情况下拿不到每日统计时，退回原来的方格热力图
+                      YearlyHeatmap(entryDates: provider.yearlyDates),
+                      const SizedBox(height: 20),
+                    ],
 
                     // Mood trend chart
                     if (provider.moodTrend.values.any((v) => v.isNotEmpty)) ...[
@@ -149,12 +211,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     // Time distribution
                     if (provider.timeDistribution.values.any((v) => v > 0)) ...[
                       TimeDistribution(timeStats: provider.timeDistribution),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // Yearly heatmap
-                    if (provider.yearlyDates.isNotEmpty) ...[
-                      YearlyHeatmap(entryDates: provider.yearlyDates),
                       const SizedBox(height: 20),
                     ],
 
