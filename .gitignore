@@ -32,6 +32,9 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+# 子模块里的构建产物（Gradle problems report 曾误入仓库）
+android/build/
+android/app/build/
 
 # Symbolication related
 app.*.symbols
@@ -55,3 +58,16 @@ APK发布版本/
 
 # AI 工作区元数据
 .workbuddy/
+.workbuddy-ai/
+
+# 本地编辑器 / MCP 配置（各人机器不一样，不该进仓库）
+.mcp.json
+.cursor/
+
+# 本机装的 MCP server 依赖（与 App 无关，几十 MB）
+node_modules/
+package.json
+package-lock.json
+
+# 与本项目无关的本地资料
+不用查看的内容/

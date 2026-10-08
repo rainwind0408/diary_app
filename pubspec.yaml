@@ -1,7 +1,7 @@
 name: diary_app
 description: 折花日记 - 水彩可爱笔记本风格的个人日记应用（Android）
 publish_to: 'none'
-version: 3.3.1+34
+version: 1.1.0+35
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -30,6 +30,14 @@ dependencies:
   file_selector: ^1.0.0
   package_info_plus: ^8.0.0
   flutter_markdown: ^0.7.0
+  # 本地离线语音（ASR + TTS）。带 4 个 ABI 的预编译 .so（合计 107MB），
+  # 靠 android/app/build.gradle.kts 的 abiFilters 裁到 arm64-v8a（26MB）。
+  sherpa_onnx: 1.13.8
+  # 「系统语音」朗读：走 Android 标准 TextToSpeech API，调手机自带的 TTS 引擎。
+  # 零体积、零权限 —— 但**必须在 AndroidManifest 里声明
+  # `<queries><intent><action android:name="android.intent.action.TTS_SERVICE"/>`
+  # （API 30+ 的包可见性要求），否则绑定引擎直接失败。
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
@@ -51,6 +59,7 @@ flutter:
     - assets/backgrounds/
     - assets/decorations/
     - assets/icon/
+    - assets/audio/
     - assets/README.md
 
   fonts:

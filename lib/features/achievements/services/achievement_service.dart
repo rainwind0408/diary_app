@@ -55,6 +55,9 @@ class AchievementService {
         case 'streak_100':
           unlocked = streakDays >= 100;
           break;
+        case 'streak_365':
+          unlocked = streakDays >= 365;
+          break;
 
         // ── 功能使用 ──
         case 'use_photo':

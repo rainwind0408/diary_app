@@ -34,6 +34,9 @@ class _AchievementScreenState extends State<AchievementScreen> {
   /// false = 花园视图，true = 时间轴视图
   bool _showTimeline = false;
 
+  /// 图鉴里已展开的分类（默认全部折叠：花园才是主角，图鉴是查阅入口）
+  final Set<AchievementCategory> _expandedCategories = <AchievementCategory>{};
+
   @override
   void initState() {
     super.initState();
@@ -179,9 +182,21 @@ class _AchievementScreenState extends State<AchievementScreen> {
     AchievementCategory category,
   ) {
     final items = provider.getByCategory(category);
+    final unlocked = items.where((a) => a.isUnlocked).length;
+    final open = _expandedCategories.contains(category);
+
     return AchievementGrid(
       title: GardenArranger.categoryLabel(category),
       achievements: items,
+      expanded: open,
+      countLabel: '$unlocked / ${items.length}',
+      onToggle: () => setState(() {
+        if (open) {
+          _expandedCategories.remove(category);
+        } else {
+          _expandedCategories.add(category);
+        }
+      }),
     );
   }
 }

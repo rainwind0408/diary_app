@@ -6,10 +6,14 @@ class TagCloudWidget extends StatelessWidget {
   final Map<String, int> tagData;
   final ValueChanged<String>? onTagTapped;
 
+  /// true = 只渲染内容，不套卡片壳（由外层分组卡统一提供容器）
+  final bool bare;
+
   const TagCloudWidget({
     super.key,
     required this.tagData,
     this.onTagTapped,
+    this.bare = false,
   });
 
   @override
@@ -27,12 +31,14 @@ class TagCloudWidget extends StatelessWidget {
     final maxCount = sorted.first.value;
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
-      ),
+      padding: bare ? EdgeInsets.zero : const EdgeInsets.all(20),
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

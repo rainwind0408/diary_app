@@ -65,6 +65,9 @@ class _DiaryWriteScreenState extends State<DiaryWriteScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkDraft();
+      // 预热「写这篇时的天气 / 地点」快照 —— 提前取好，保存时零等待。
+      // 编辑已有日记时内部会自动跳过（那是「当时」的现场，不能改写）。
+      unawaited(_provider.warmUpSnapshot());
     });
   }
 

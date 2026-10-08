@@ -7,7 +7,25 @@ import '../../../data/repositories/diary_repository.dart';
 /// 全屏日历视图（参考图6）
 /// 月份选择器 + 甜甜圈统计图 + 彩色方格 + 每日标记
 class CalendarView extends StatefulWidget {
-  const CalendarView({super.key});
+  /// true = 只渲染内容，不套卡片壳（由外层「写作年历」卡统一提供容器）
+  final bool bare;
+
+  /// 外部选中的日期（用于齿轮检索器联动时高亮某天）；null = 维持旧行为只高亮今天
+  final DateTime? selectedDate;
+
+  /// 点击某一天时回调；null = 维持旧行为（格子不可点）
+  final ValueChanged<DateTime>? onDateSelected;
+
+  /// 初始展示的月份；null = 当前月（齿轮检索器联动时按它重建）
+  final DateTime? initialMonth;
+
+  const CalendarView({
+    super.key,
+    this.bare = false,
+    this.selectedDate,
+    this.onDateSelected,
+    this.initialMonth,
+  });
 
   @override
   State<CalendarView> createState() => _CalendarViewState();
@@ -23,26 +41,38 @@ class _CalendarViewState extends State<CalendarView> {
   @override
   void initState() {
     super.initState();
+    _currentMonth = widget.initialMonth ?? DateTime.now();
     _loadMonthData();
+  }
+
+  @override
+  void didUpdateWidget(covariant CalendarView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 外部（齿轮检索器）切换月份时同步重查当月数据
+    final m = widget.initialMonth;
+    if (m != null &&
+        (m.year != _currentMonth.year || m.month != _currentMonth.month)) {
+      _currentMonth = m;
+      _loadMonthData();
+    }
   }
 
   Future<void> _loadMonthData() async {
     final generation = ++_loadGeneration;
 
-    final entryDays = await _repository.getEntryDatesInMonth(
+    // 一次聚合查询拿齐「这个月哪几天有记录 + 每天的心情」。
+    // 旧写法先 getEntryDatesInMonth 取日期集合，再对每一天单独
+    // getEntriesByDate —— 一个月最多 31 次额外查询，是典型的 N+1。
+    final stats = await _repository.getMonthDayStats(
       _currentMonth.year,
       _currentMonth.month,
     );
 
-    // Load moods for each day
-    final dayMoods = <int, String>{};
-    for (final day in entryDays) {
-      final date = DateTime(_currentMonth.year, _currentMonth.month, day);
-      final entries = await _repository.getEntriesByDate(date);
-      if (entries.isNotEmpty && entries.first.mood.isNotEmpty) {
-        dayMoods[day] = entries.first.mood;
-      }
-    }
+    final entryDays = stats.keys.toSet();
+    final dayMoods = <int, String>{
+      for (final e in stats.entries)
+        if (e.value.mood.isNotEmpty) e.key: e.value.mood,
+    };
 
     if (mounted && generation == _loadGeneration) {
       setState(() {
@@ -95,12 +125,14 @@ class _CalendarViewState extends State<CalendarView> {
     final quote = _quotes[month % _quotes.length];
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
-      ),
+      padding: widget.bare ? EdgeInsets.zero : const EdgeInsets.all(16),
+      decoration: widget.bare
+          ? null
+          : BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -198,20 +230,26 @@ class _CalendarViewState extends State<CalendarView> {
               final isToday = date.year == today.year &&
                   date.month == today.month &&
                   date.day == today.day;
+              final isSelected = widget.selectedDate != null &&
+                  date.year == widget.selectedDate!.year &&
+                  date.month == widget.selectedDate!.month &&
+                  date.day == widget.selectedDate!.day;
               final hasEntry = _entryDays.contains(day);
               final mood = _dayMoods[day];
               final dayColor = _dayColors[day % _dayColors.length];
 
-              return Container(
+              final cell = Container(
                 margin: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   color: hasEntry
                       ? dayColor.withValues(alpha: 0.35)
                       : dayColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: isToday
-                      ? Border.all(color: accentColor, width: 1.5)
-                      : null,
+                  border: isSelected
+                      ? Border.all(color: accentColor, width: 2)
+                      : isToday
+                          ? Border.all(color: accentColor, width: 1.5)
+                          : null,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -239,6 +277,13 @@ class _CalendarViewState extends State<CalendarView> {
                       ),
                   ],
                 ),
+              );
+
+              if (widget.onDateSelected == null) return cell;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => widget.onDateSelected!(date),
+                child: cell,
               );
             },
           ),

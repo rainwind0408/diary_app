@@ -8,8 +8,10 @@ import '../../../data/models/diary_entry.dart';
 import '../../../data/models/placed_audio.dart';
 import '../../../data/models/placed_image.dart';
 import '../../../data/repositories/diary_repository.dart';
+import '../../chat/models/diary_insight.dart';
 import '../../stickers/models/placed_sticker.dart';
 import '../../templates/models/template.dart';
+import '../../weather/services/weather_service.dart';
 import '../services/audio_service.dart';
 import '../services/draft_service.dart';
 
@@ -28,6 +30,35 @@ class DiaryWriteProvider extends ChangeNotifier {
       : _repository = repository ?? DiaryRepository();
 
   final DiaryRepository _repository;
+
+  // ==================== 写日记时的现场快照 ====================
+
+  /// 进入写日记页时**预热**好的天气 / 地点快照。
+  ///
+  /// ★ 为什么是预热而不是「点保存时现取」：定位 + 两个网络请求最坏要十几秒，
+  /// 让用户点完保存干等是不能接受的。预热放在进页面那一刻，等用户写完
+  /// （通常几分钟）早就就绪了；保存时零等待。
+  DiarySnapshot? _snapshot;
+  bool _snapshotLoading = false;
+
+  /// 快照的代际号。清空后自增，用来作废旧的在途请求 ——
+  /// 否则「上一轮写作」的请求回来时会污染「这一轮」的快照。
+  int _snapshotGen = 0;
+
+  /// 预热现场快照。幂等 —— 重复调用不会重复请求。
+  ///
+  /// 编辑已有日记时**不采集**：那是「当时」的现场，不该被改写成现在。
+  Future<void> warmUpSnapshot() async {
+    if (_editingEntry != null || _snapshot != null || _snapshotLoading) return;
+    final gen = _snapshotGen;
+    _snapshotLoading = true;
+    try {
+      final result = await WeatherService.captureForDiary();
+      if (gen == _snapshotGen) _snapshot = result;
+    } finally {
+      if (gen == _snapshotGen) _snapshotLoading = false;
+    }
+  }
 
   // ==================== 单页正文 ====================
 
@@ -152,11 +183,11 @@ class DiaryWriteProvider extends ChangeNotifier {
     final fullContent = _content;
     final count = WordCounter.count(fullContent);
 
-    // 从正文里提取 #标签，与手动标签合并
-    final contentTags = RegExp(r'\B#\w+')
-        .allMatches(fullContent)
-        .map((m) => m.group(0)!.substring(1).toLowerCase())
-        .toSet();
+    // 从正文里提取 #标签，与手动标签合并。
+    // ⚠️ 规则统一走 [DiaryInsight.hashTagsIn] —— 以前这里写的是 `\B#\w+`，
+    //    而 Dart 的 `\w` 不含中文，导致 `#跑步` 这种写法**一个标签都抽不出来**。
+    //    两处规则必须一致，否则会出现「AI 推荐了但保存时不算」。
+    final contentTags = DiaryInsight.hashTagsIn(fullContent).toSet();
     final allTags = {
       ..._tags.map((t) => t.toLowerCase()),
       ...contentTags,
@@ -185,6 +216,8 @@ class DiaryWriteProvider extends ChangeNotifier {
       await _repository.updateEntry(updated);
       resultId = updated.id!;
     } else {
+      // 快照**只在这里（新建）写入** —— 编辑分支走 copyWith 且不带这两个参数，
+      // 于是旧日记的天气 / 地点原样保留，不会被改写成「今天」。
       final entry = DiaryEntry(
         title: title.isEmpty ? '无标题' : title,
         content: fullContent,
@@ -197,6 +230,8 @@ class DiaryWriteProvider extends ChangeNotifier {
         images: images,
         audios: audios,
         stickers: _stickers,
+        weather: _snapshot?.weather ?? '',
+        location: _snapshot?.location ?? '',
       );
       resultId = await _repository.insertEntry(entry);
     }
@@ -287,6 +322,10 @@ class DiaryWriteProvider extends ChangeNotifier {
     _audios = [];
     _replaceContent('');
     _cancelDraftTimer();
+    // 快照属于「这一次写作」：作废旧的在途请求，下次进页面重新预热
+    _snapshotGen++;
+    _snapshot = null;
+    _snapshotLoading = false;
     notifyListeners();
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/events/diary_change_bus.dart';
 import '../../../data/models/diary_entry.dart';
 import '../../../data/repositories/diary_repository.dart';
 
@@ -26,6 +27,30 @@ class DiaryListProvider extends ChangeNotifier {
 
   DiaryListProvider() {
     _loadViewMode();
+    // AI 在别的页面把日记改了 / 删了，这里要跟着刷新。
+    // 订阅放在 Provider 而不是页面里：AI 可以在任何入口写日记
+    //（聊天页、悬浮球语音直通），页面级订阅一定会漏。
+    _unsubscribe = DiaryChangeBus.subscribe(_reload);
+  }
+
+  /// 记住最近一次加载的日期，供外部改动后原地刷新
+  DateTime? _lastDate;
+  void Function()? _unsubscribe;
+
+  void _reload() {
+    if (_isSearching && _searchKeyword.trim().isNotEmpty) {
+      searchEntries(_searchKeyword);
+      return;
+    }
+    final date = _lastDate;
+    if (date != null) loadEntries(date);
+  }
+
+  @override
+  void dispose() {
+    _unsubscribe?.call();
+    _unsubscribe = null;
+    super.dispose();
   }
 
   Future<void> _loadViewMode() async {
@@ -47,6 +72,7 @@ class DiaryListProvider extends ChangeNotifier {
 
   Future<void> loadEntries(DateTime date) async {
     if (_isSearching) return;
+    _lastDate = date;
     _isLoading = true;
     _error = null;
     notifyListeners();

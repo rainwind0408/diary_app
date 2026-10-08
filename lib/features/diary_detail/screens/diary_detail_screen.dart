@@ -8,6 +8,7 @@ import '../../../core/widgets/watercolor_background.dart';
 import '../../../data/models/diary_entry.dart';
 import '../../../data/repositories/diary_repository.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
+import '../../assistant/services/orb_visibility.dart';
 import '../../diary_write/providers/diary_write_provider.dart';
 import '../../diary_write/screens/diary_write_screen.dart';
 import '../../weather/providers/seasonal_provider.dart';
@@ -78,7 +79,12 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
       context.read<DiaryWriteProvider>().loadForEdit(entry);
       developer.log('_editEntry: loadForEdit success, navigating to write screen');
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const DiaryWriteScreen()),
+        MaterialPageRoute(
+          // 必须显式命名：写日记画布上的图片/贴纸/录音都可拖拽，
+          // 悬浮球压在上面会抢走手势，靠这个名字把它藏起来
+          settings: const RouteSettings(name: OrbRoutes.write),
+          builder: (_) => const DiaryWriteScreen(),
+        ),
       );
     } catch (e, st) {
       developer.log('_editEntry ERROR', error: e, stackTrace: st);
@@ -101,24 +107,39 @@ class _DiaryDetailScreenState extends State<DiaryDetailScreen> {
       await repo.deleteEntry(entry.id!);
       if (!mounted) return;
 
-      // 从列表中移除并更新状态
+      // 删完就一篇不剩 → 删完要直接返回上一页
+      final willBeEmpty = widget.allEntries.length <= 1;
+
+      // 就地删：这是**调用方传进来的同一个 List 实例**，日记列表页也靠它刷新
+      widget.allEntries.removeAt(_currentIndex);
+
+      Toast().show(context, '日记已删除', ToastType.success);
+
+      if (willBeEmpty) {
+        // ★★ 这里**只能 pop 一次**。
+        //
+        // 旧代码在 `setState` 回调里 pop 了一次（第 114 行），紧接着下面
+        // `if (widget.allEntries.isEmpty && mounted)` 又 pop 了一次 —— 连弹两下
+        // 会把上一层（日记列表页）也弹掉。
+        //
+        // 而「刚写完日记保存」这条路径是 `pushReplacement` 进来的
+        // （见 `diary_write_screen.dart` 的 `_navigateToDetail`），栈里本来就
+        // 只剩「日记列表页 + 本页」两页，两下弹完**栈就空了**
+        // → 黑屏，且系统返回键直接退出应用。
+        //
+        // 之所以「保存后立即删除」必现、从列表页进来却不一定：保存后传进来的
+        // `allEntries` 是 `getEntriesByDate()` 的结果，当天只写了一篇时长度为 1，
+        // 删掉必然走这条分支。
+        Navigator.of(context).pop();
+        return;
+      }
+
       setState(() {
-        widget.allEntries.removeAt(_currentIndex);
-        if (widget.allEntries.isEmpty) {
-          Navigator.of(context).pop();
-          return;
-        }
+        // 删掉的是最后一篇时，游标要退一格，否则 build 里会越界
         if (_currentIndex >= widget.allEntries.length) {
           _currentIndex = widget.allEntries.length - 1;
         }
       });
-
-      Toast().show(context, '日记已删除', ToastType.success);
-
-      // 列表为空时返回
-      if (widget.allEntries.isEmpty && mounted) {
-        Navigator.of(context).pop();
-      }
     } catch (e) {
       if (mounted) {
         Toast().show(context, '删除失败，请重试', ToastType.error);

@@ -6,7 +6,17 @@ import '../../../core/constants/app_text_styles.dart';
 class MoodTrendChart extends StatelessWidget {
   final Map<String, List<String>> moodTrend;
 
-  const MoodTrendChart({super.key, required this.moodTrend});
+  /// true = 只渲染内容，不套卡片壳
+  ///
+  /// 回顾页把 4~5 张图表收进同一张分组卡，若每张图表还各带一层
+  /// 「白底 + 阴影 + 20 圆角」，页面就被卡片边框切碎了。
+  final bool bare;
+
+  const MoodTrendChart({
+    super.key,
+    required this.moodTrend,
+    this.bare = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +43,14 @@ class MoodTrendChart extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
-      ),
+      padding: bare ? EdgeInsets.zero : const EdgeInsets.all(20),
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

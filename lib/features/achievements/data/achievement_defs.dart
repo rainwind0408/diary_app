@@ -76,6 +76,13 @@ class AchievementDefs {
     icon: '💎',
     category: AchievementCategory.streak,
   );
+  static const streak365 = Achievement(
+    id: 'streak_365',
+    name: '坚持一年',
+    description: '连续写作 365 天',
+    icon: '👑',
+    category: AchievementCategory.streak,
+  );
 
   // ── 功能使用 ──
   static const usePhoto = Achievement(
@@ -156,7 +163,7 @@ class AchievementDefs {
     // 写作
     firstEntry, entry10, entry50, entry100, entry365,
     // 连续写作
-    streak3, streak7, streak14, streak30, streak100,
+    streak3, streak7, streak14, streak30, streak100, streak365,
     // 功能使用
     usePhoto, useAudio, useTag, useMood, useLock,
     // 特殊

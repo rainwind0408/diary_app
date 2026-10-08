@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../core/events/diary_change_bus.dart';
 import '../services/statistics_service.dart';
 
 class StatisticsProvider extends ChangeNotifier {
@@ -67,5 +68,26 @@ class StatisticsProvider extends ChangeNotifier {
     _moodTrend = results[0] as Map<String, List<String>>;
     _wordCountTrend = results[1] as Map<String, int>;
     notifyListeners();
+  }
+
+  // ─────────────────────────────────────────────
+  // 跟随日记数据变化自动刷新
+  // ─────────────────────────────────────────────
+
+  void Function()? _unsubscribe;
+
+  /// 订阅「日记被改动了」。
+  ///
+  /// 放在 Provider 的构造里而不是「回顾」页面里：AI 写日记时用户可能正在
+  /// 别的 tab，靠页面 `initState` 是刷不到的。
+  StatisticsProvider() {
+    _unsubscribe = DiaryChangeBus.subscribe(loadStatistics);
+  }
+
+  @override
+  void dispose() {
+    _unsubscribe?.call();
+    _unsubscribe = null;
+    super.dispose();
   }
 }

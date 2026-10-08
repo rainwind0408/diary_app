@@ -6,7 +6,14 @@ import '../../../core/constants/app_text_styles.dart';
 class MoodDistributionChart extends StatelessWidget {
   final Map<String, int> moodStats;
 
-  const MoodDistributionChart({super.key, required this.moodStats});
+  /// true = 只渲染内容，不套卡片壳（由外层分组卡统一提供容器）
+  final bool bare;
+
+  const MoodDistributionChart({
+    super.key,
+    required this.moodStats,
+    this.bare = false,
+  });
 
   // 水彩风格柔和色彩
   static const _colors = [
@@ -33,12 +40,14 @@ class MoodDistributionChart extends StatelessWidget {
     if (total == 0) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
-      ),
+      padding: bare ? EdgeInsets.zero : const EdgeInsets.all(20),
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -62,6 +62,12 @@ class _DetailCardState extends State<DetailCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 现场信息条：写这篇时的日期时间 / 天气 / 地点。
+                  // 采集依赖定位授权（见 WeatherService.captureForDiary），
+                  // 所以「没开定位」自然表现为「整条不渲染」。
+                  if (entry.weather.isNotEmpty || entry.location.isNotEmpty)
+                    _buildMetaLine(entry, subtleColor, accentColor),
+
                   // 图片区域（展示所有图片）
                   if (entry.images.isNotEmpty)
                     _buildImageSection(context, entry.images, accentColor),
@@ -204,22 +210,82 @@ class _DetailCardState extends State<DetailCard> {
     );
   }
 
+  /// 顶部现场信息条：`10月8日 16:58 · 晴 23°C · 广东省深圳市福田区`
+  ///
+  /// 时间取 [DiaryEntry.createdAt]（= 写下这篇的那一刻），精确到分钟。
+  /// 编辑旧日记不会改写它，所以它始终是「当时」的时间。
+  Widget _buildMetaLine(
+    DiaryEntry entry,
+    Color subtleColor,
+    Color accentColor,
+  ) {
+    final items = <String>[
+      _formatMinute(entry.createdAt),
+      if (entry.weather.isNotEmpty) entry.weather,
+      if (entry.location.isNotEmpty) entry.location,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              Icons.place_outlined,
+              size: 13,
+              color: accentColor.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              items.join(' · '),
+              style: TextStyle(
+                fontSize: 11.5,
+                color: subtleColor,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatMinute(DateTime d) {
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '${d.month}月${d.day}日 $hh:$mm';
+  }
+
   Widget _buildImageSection(BuildContext context, List images, Color accentColor) {
-    if (images.length == 1) {
-      return _buildSingleImage(context, images[0].path, accentColor);
+    // 路径列表一次算好，交给每张图 —— 点开大图时要能左右滑看**整组**，
+    // 而不是只看点中的那一张。
+    final paths = [for (final img in images) img.path as String];
+    if (paths.length == 1) {
+      return _buildSingleImage(context, paths[0], accentColor, paths, 0);
     }
     return SizedBox(
       height: 180,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: images.length,
+        itemCount: paths.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (ctx, i) => _buildSingleImage(ctx, images[i].path, accentColor),
+        itemBuilder: (ctx, i) =>
+            _buildSingleImage(ctx, paths[i], accentColor, paths, i),
       ),
     );
   }
 
-  Widget _buildSingleImage(BuildContext context, String path, Color accentColor) {
+  Widget _buildSingleImage(
+    BuildContext context,
+    String path,
+    Color accentColor,
+    List<String> allPaths,
+    int index,
+  ) {
     return FutureBuilder<File>(
       future: ImageService.getImageFile(path),
       builder: (ctx, snapshot) {
@@ -240,7 +306,7 @@ class _DetailCardState extends State<DetailCard> {
           );
         }
         return GestureDetector(
-          onTap: () => _showFullImage(context, snapshot.data!),
+          onTap: () => _showFullImage(context, allPaths, index),
           child: Container(
             width: 280,
             height: 180,
@@ -277,8 +343,18 @@ class _DetailCardState extends State<DetailCard> {
     );
   }
 
-  void _showFullImage(BuildContext context, File file) {
-    FullImageViewer.show(context, file);
+  /// 全屏查看：传**整组**图片 + 当前下标，这样放大后能左右滑看其他张。
+  Future<void> _showFullImage(
+    BuildContext context,
+    List<String> paths,
+    int index,
+  ) async {
+    final files = <File>[];
+    for (final path in paths) {
+      files.add(await ImageService.getImageFile(path));
+    }
+    if (!context.mounted) return;
+    await FullImageViewer.show(context, files, initialIndex: index);
   }
 
   Widget _buildAudioSection(BuildContext context, List<PlacedAudio> audios, Color accentColor, Color subtleColor) {

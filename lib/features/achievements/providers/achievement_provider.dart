@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import '../../../core/events/diary_change_bus.dart';
 import '../../../data/database/database_helper.dart';
 import '../../../data/database/database_constants.dart';
 import '../models/achievement.dart';
@@ -14,6 +15,24 @@ class AchievementProvider extends ChangeNotifier {
   // 今日新解锁
   List<Achievement> _unlockedToday = [];
   bool _loading = true;
+
+  void Function()? _unsubscribe;
+
+  /// AI 通过工具写日记后，成就的「已解锁」状态可能变了，要重新读一遍库。
+  ///
+  /// 只重读、不重新判定解锁 —— 判定需要「总篇数 / 连续天数 / 功能使用」，
+  /// 那些是页面在保存日记后主动调 `checkAndUnlock` 才有的上下文。
+  /// 这里保证的是「列表本身不会显示过期状态」。
+  AchievementProvider() {
+    _unsubscribe = DiaryChangeBus.subscribe(loadAchievements);
+  }
+
+  @override
+  void dispose() {
+    _unsubscribe?.call();
+    _unsubscribe = null;
+    super.dispose();
+  }
 
   List<Achievement> get unlockedToday => _unlockedToday;
   bool get loading => _loading;

@@ -5,7 +5,14 @@ import '../../../core/constants/app_text_styles.dart';
 class TimeDistribution extends StatelessWidget {
   final Map<String, int> timeStats;
 
-  const TimeDistribution({super.key, required this.timeStats});
+  /// true = 只渲染内容，不套卡片壳（由外层分组卡统一提供容器）
+  final bool bare;
+
+  const TimeDistribution({
+    super.key,
+    required this.timeStats,
+    this.bare = false,
+  });
 
   static const List<_TimeSlot> _slots = [
     _TimeSlot('早晨', '🌅'),
@@ -37,12 +44,14 @@ class TimeDistribution extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
-      ),
+      padding: bare ? EdgeInsets.zero : const EdgeInsets.all(20),
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

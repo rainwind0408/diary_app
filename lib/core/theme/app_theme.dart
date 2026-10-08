@@ -33,7 +33,6 @@ class AppTheme {
           statusBarIconBrightness: Brightness.dark,
         ),
       ),
-      fontFamily: 'ZCOOLXiaoWei',
       splashColor: accent.withValues(alpha: 0.1),
       highlightColor: accent.withValues(alpha: 0.05),
     );
@@ -59,7 +58,6 @@ class AppTheme {
           statusBarIconBrightness: Brightness.light,
         ),
       ),
-      fontFamily: 'ZCOOLXiaoWei',
       splashColor: accent.withValues(alpha: 0.1),
       highlightColor: accent.withValues(alpha: 0.05),
     );

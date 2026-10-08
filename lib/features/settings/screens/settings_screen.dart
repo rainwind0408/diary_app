@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../weather/providers/seasonal_provider.dart';
+import '../../diary_encrypt/widgets/biometric_settings_tile.dart';
 import '../providers/font_size_provider.dart';
 
 import '../providers/theme_provider.dart';
@@ -115,12 +116,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   trailing: Text(
-                    '字体',
+                    '${fontProvider.scale.toStringAsFixed(1)}x',
                     style: AppTextStyles.body.copyWith(
                       color: isDark ? AppColors.darkBodyText : AppColors.bodyText,
                     ),
                   ),
                 ),
+                Divider(height: 1, color: isDark ? AppColors.darkDividerLine : AppColors.dividerLine),
+                const BiometricSettingsTile(),
                 Divider(height: 1, color: isDark ? AppColors.darkDividerLine : AppColors.dividerLine),
                 const ReminderSettings(),
                 Divider(height: 1, color: isDark ? AppColors.darkDividerLine : AppColors.dividerLine),

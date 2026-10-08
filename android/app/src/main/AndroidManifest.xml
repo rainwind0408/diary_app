@@ -7,6 +7,30 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- AI 助手语音输入：录音后走云端语音识别（STT） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- 日记「指纹解锁」：复用系统已录入的指纹。
+         USE_BIOMETRIC 是 API 28+ 的权限名；
+         API 23~27 上叫 USE_FINGERPRINT，所以两个都声明，
+         并把老的限制到 27 及以下，避免新系统上出现重复声明。 -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission
+        android:name="android.permission.USE_FINGERPRINT"
+        android:maxSdkVersion="27"/>
+    <!-- AI 助手附件：从相册选择图片 / 视频。
+         image_picker 走系统相册选择器（Photo Picker），通常无需运行时授权；
+         下面声明是为 Android 12 及以下回退到传统读取路径时兜底。 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <!-- AI 生图结果保存到系统相册。
+         Android 10（API 29）起走 MediaStore 插入自己创建的媒体，无需权限；
+         只有 API 28 及以下的老系统才需要写外部存储，所以限制到 28。 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
     <application
         android:label="折花日记"
         android:name="${applicationName}"
@@ -68,6 +92,14 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- ★ 朗读走「系统自带语音」时必须声明这一条。
+             Android 11（API 30）起的**包可见性**机制会让 App 看不见 TTS 引擎，
+             TextToSpeech 绑定直接失败，报 `speak failed: not bound to TTS engine`
+             —— 而且报错信息里完全看不出是清单问题。
+             官方要求：targetSdk >= 30 且使用 TextToSpeech 的 App 都要声明它。 -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
         </intent>
     </queries>
 </manifest>

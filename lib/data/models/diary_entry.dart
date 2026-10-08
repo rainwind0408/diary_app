@@ -21,6 +21,15 @@ class DiaryEntry {
   final List<PlacedAudio> audios;
   final List<PlacedSticker> stickers;
 
+  /// 写这篇日记时的天气快照，如 `晴 23°C`。定位不可用 / 未授权时为空串。
+  ///
+  /// 存成**字符串快照**而不是结构化字段：它是「那一刻的现场记录」，
+  /// 不参与统计，也不必跟着天气 API 的字段变化而迁移。
+  final String weather;
+
+  /// 写这篇日记时的地点快照，如 `广东省深圳市福田区`。空串 = 未记录。
+  final String location;
+
   DiaryEntry({
     this.id,
     required this.title,
@@ -38,6 +47,8 @@ class DiaryEntry {
     this.images = const [],
     this.audios = const [],
     this.stickers = const [],
+    this.weather = '',
+    this.location = '',
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -58,6 +69,8 @@ class DiaryEntry {
     List<PlacedImage>? images,
     List<PlacedAudio>? audios,
     List<PlacedSticker>? stickers,
+    String? weather,
+    String? location,
   }) {
     return DiaryEntry(
       id: id ?? this.id,
@@ -76,6 +89,8 @@ class DiaryEntry {
       images: images ?? this.images,
       audios: audios ?? this.audios,
       stickers: stickers ?? this.stickers,
+      weather: weather ?? this.weather,
+      location: location ?? this.location,
     );
   }
 
@@ -97,6 +112,8 @@ class DiaryEntry {
       'images': jsonEncode(images.map((img) => img.toJson()).toList()),
       'audios': jsonEncode(audios.map((a) => a.toJson()).toList()),
       'stickers': jsonEncode(stickers.map((s) => s.toJson()).toList()),
+      'weather': weather,
+      'location': location,
     };
   }
 
@@ -118,6 +135,8 @@ class DiaryEntry {
       images: PlacedImage.parseList(map['images']),
       audios: PlacedAudio.parseList(map['audios']),
       stickers: _parseStickers(map['stickers']),
+      weather: (map['weather'] as String?) ?? '',
+      location: (map['location'] as String?) ?? '',
     );
   }
 

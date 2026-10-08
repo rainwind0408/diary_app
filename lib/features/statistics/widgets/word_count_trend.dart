@@ -6,7 +6,14 @@ import '../../../core/constants/app_text_styles.dart';
 class WordCountTrend extends StatelessWidget {
   final Map<String, int> trendData;
 
-  const WordCountTrend({super.key, required this.trendData});
+  /// true = 只渲染内容，不套卡片壳（由外层分组卡统一提供容器）
+  final bool bare;
+
+  const WordCountTrend({
+    super.key,
+    required this.trendData,
+    this.bare = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -26,12 +33,14 @@ class WordCountTrend extends StatelessWidget {
     final avgWords = entries.isNotEmpty ? totalWords ~/ entries.length : 0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
-      ),
+      padding: bare ? EdgeInsets.zero : const EdgeInsets.all(20),
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isDark ? AppColors.darkCardShadow : AppColors.cardShadow,
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

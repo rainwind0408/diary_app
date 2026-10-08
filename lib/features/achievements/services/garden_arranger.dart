@@ -120,6 +120,8 @@ class GardenArranger {
         return 30;
       case 'streak_100':
         return 100;
+      case 'streak_365':
+        return 365;
       case 'total_words_100k':
         return 100000;
       default:

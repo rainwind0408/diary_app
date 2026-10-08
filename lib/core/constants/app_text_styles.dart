@@ -75,8 +75,9 @@ class AppTextStyles {
   );
 
   // ZCOOL XiaoWei — body, labels, page numbers
+  // 正文/标签类样式不指定 fontFamily：回落系统默认字体，
+  // 便于用户通过设置页的「字体大小」整体缩放；手写体仅保留在标题类样式中。
   static const TextStyle body = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 16,
     color: AppColors.bodyText,
     height: 1.8,
@@ -84,7 +85,6 @@ class AppTextStyles {
   );
 
   static const TextStyle bodyLarge = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 18,
     color: AppColors.titleText,
     height: 1.7,
@@ -92,7 +92,6 @@ class AppTextStyles {
   );
 
   static const TextStyle cardBody = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 15,
     color: AppColors.bodyText,
     height: 1.7,
@@ -100,21 +99,18 @@ class AppTextStyles {
   );
 
   static const TextStyle label = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 14,
     color: AppColors.labelText,
     letterSpacing: 0.3,
   );
 
   static const TextStyle cardDate = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 13,
     color: AppColors.subtleText,
     letterSpacing: 0.3,
   );
 
   static const TextStyle pageNumber = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 12,
     color: AppColors.placeholderText,
     letterSpacing: 0.3,
@@ -128,7 +124,6 @@ class AppTextStyles {
   );
 
   static const TextStyle toast = TextStyle(
-    fontFamily: 'ZCOOLXiaoWei',
     fontSize: 16,
     letterSpacing: 0.5,
   );

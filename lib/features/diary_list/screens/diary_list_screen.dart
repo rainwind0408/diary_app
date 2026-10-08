@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/events/diary_change_bus.dart';
 import '../../../core/widgets/toast.dart';
 import '../../diary_encrypt/widgets/pin_input_dialog.dart';
+import '../../diary_encrypt/services/diary_access.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../data/repositories/diary_repository.dart';
@@ -13,6 +15,8 @@ import '../../weather/providers/seasonal_provider.dart';
 import '../../achievements/providers/achievement_provider.dart';
 import '../providers/date_filter_provider.dart';
 import '../providers/diary_list_provider.dart';
+import '../models/temp_cover.dart';
+import '../services/temp_cover_store.dart';
 import '../widgets/misc/empty_state.dart';
 import '../widgets/filters/search_bar.dart';
 import '../widgets/filters/tag_cloud.dart';
@@ -40,6 +44,9 @@ class DiaryListScreenState extends State<DiaryListScreen> {
   /// 当前展示月份的封面图路径（首张为「当前日期」的图片）
   List<String> _coverImages = [];
 
+  /// 「日记被改动了」的退订函数
+  void Function()? _unsubscribeChanges;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +55,16 @@ class DiaryListScreenState extends State<DiaryListScreen> {
       _loadStreakAndWeek();
       _loadCoverImages();
     });
+    // 封面图和连续天数都在页面里（不在 Provider 里），所以要自己订阅。
+    // 不订阅的话：AI 在聊天页写了一篇带图的日记，切回列表页看不到封面。
+    _unsubscribeChanges = DiaryChangeBus.subscribe(refreshStreak);
+  }
+
+  @override
+  void dispose() {
+    _unsubscribeChanges?.call();
+    _unsubscribeChanges = null;
+    super.dispose();
   }
 
   /// 外部调用：刷新连续天数和本周数据
@@ -132,18 +149,21 @@ class DiaryListScreenState extends State<DiaryListScreen> {
 
   Future<void> _handleUnlock(DiaryEntry entry) async {
     if (entry.id == null) return;
-    final pin = await PinInputDialog.show(
+    // 指纹优先、PIN 兜底（降级链统一在 DiaryAccess 里）
+    final result = await DiaryAccess.verify(
       context,
+      entry.pinHash,
       title: '输入密码解锁',
+      biometricTitle: '解锁日记',
     );
-    if (pin == null || !mounted) return;
+    if (!mounted) return;
 
-    if (PinService.verifyPin(pin, entry.pinHash)) {
+    if (result == DiaryAccessResult.granted) {
       await context.read<DiaryListProvider>().unlockEntry(entry.id!);
       if (mounted) {
         Toast().show(context, '日记已解锁', ToastType.success);
       }
-    } else if (mounted) {
+    } else if (result == DiaryAccessResult.denied) {
       Toast().show(context, '密码错误', ToastType.error);
     }
   }
@@ -190,12 +210,18 @@ class DiaryListScreenState extends State<DiaryListScreen> {
 
   Future<void> _handleEdit(DiaryEntry entry) async {
     if (entry.isLocked) {
-      final pin = await PinInputDialog.show(context, title: '输入密码查看');
-      if (pin == null || !mounted) return;
-      if (!PinService.verifyPin(pin, entry.pinHash)) {
-        if (mounted) Toast().show(context, '密码错误', ToastType.error);
+      final result = await DiaryAccess.verify(
+        context,
+        entry.pinHash,
+        title: '输入密码查看',
+        biometricTitle: '查看日记',
+      );
+      if (!mounted) return;
+      if (result == DiaryAccessResult.denied) {
+        Toast().show(context, '密码错误', ToastType.error);
         return;
       }
+      if (result != DiaryAccessResult.granted) return;
     }
     if (!mounted) return;
 
@@ -224,12 +250,18 @@ class DiaryListScreenState extends State<DiaryListScreen> {
   Future<void> _handleDelete(
       DiaryEntry entry, DiaryListProvider listProvider) async {
     if (entry.isLocked) {
-      final pin = await PinInputDialog.show(context, title: '输入密码');
-      if (pin == null || !mounted) return;
-      if (!PinService.verifyPin(pin, entry.pinHash)) {
-        if (mounted) Toast().show(context, '密码错误', ToastType.error);
+      final result = await DiaryAccess.verify(
+        context,
+        entry.pinHash,
+        title: '输入密码',
+        biometricTitle: '删除日记',
+      );
+      if (!mounted) return;
+      if (result == DiaryAccessResult.denied) {
+        Toast().show(context, '密码错误', ToastType.error);
         return;
       }
+      if (result != DiaryAccessResult.granted) return;
     }
     if (!mounted) return;
     final confirmed = await showConfirmDialog(
@@ -311,10 +343,18 @@ class DiaryListScreenState extends State<DiaryListScreen> {
                     children: [
                       _buildGreetingBanner(),
 
-                      CoverPhotoBanner(
-                        imagePaths: _coverImages,
-                        monthLabel:
-                            '${dateFilter.selectedDate.year}年${dateFilter.selectedDate.month}月',
+                      // 临时封面图（AI 生成、重启即消失）与月份无关，所以
+                      // **不能**混进 _loadCoverImages —— 那样切月份会把它冲掉。
+                      // 这里独立订阅一个静态 notifier（写方是 ChatProvider，
+                      // 拿不到 BuildContext，见 TempCoverStore 的注释）。
+                      ValueListenableBuilder<List<TempCover>>(
+                        valueListenable: TempCoverStore.covers,
+                        builder: (context, tempCovers, _) => CoverPhotoBanner(
+                          imagePaths: _coverImages,
+                          tempCovers: tempCovers,
+                          monthLabel:
+                              '${dateFilter.selectedDate.year}年${dateFilter.selectedDate.month}月',
+                        ),
                       ),
 
                       // 日期导航由日历卡片唯一承担：点头条展开月历网格选日。
