@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 /// 水彩装饰元素层
 /// 在页面角落显示花朵、云朵、星星等装饰图片
+///
+/// ⚠️ 资源尺寸约定（2026-10-09）：这里给的是**逻辑像素**，实际图片按
+/// `逻辑尺寸 x 4` 准备即可（覆盖到 4x DPR 机型仍有余量）。
+/// 此前这些图被存成 2048x1926 这种尺寸，而 star 只画 40x40 ——
+/// 像素量浪费了 300 多倍，单张 PNG 就 3.8 MB。改图前先看这里的 width/height。
 class WatercolorDecorations extends StatelessWidget {
   final double opacity;
 

@@ -14,16 +14,21 @@ class WatercolorBackground extends StatelessWidget {
   const WatercolorBackground({super.key, required this.child});
 
   /// 根据季节获取水彩背景图路径
+  ///
+  /// 2026-10-09 体积优化：原为 `.png`。这四张图是 **RGB 无 alpha** 的整屏背景，
+  /// 用 PNG 存纯属浪费（每张 4.2~4.7 MB）。转为 JPEG(q88) 后每张约 0.5 MB，
+  /// 分辨率保持不变 —— 它们走 `BoxFit.cover` 铺满整屏，降分辨率会被放大回
+  /// 屏幕物理像素（1224x2776），得不偿失。
   static String _getWatercolorBgPath(Season season) {
     switch (season) {
       case Season.spring:
-        return 'assets/backgrounds/wc_bg_spring.png';
+        return 'assets/backgrounds/wc_bg_spring.jpg';
       case Season.summer:
-        return 'assets/backgrounds/wc_bg_summer.png';
+        return 'assets/backgrounds/wc_bg_summer.jpg';
       case Season.autumn:
-        return 'assets/backgrounds/wc_bg_autumn.png';
+        return 'assets/backgrounds/wc_bg_autumn.jpg';
       case Season.winter:
-        return 'assets/backgrounds/wc_bg_winter.png';
+        return 'assets/backgrounds/wc_bg_winter.jpg';
     }
   }
 
