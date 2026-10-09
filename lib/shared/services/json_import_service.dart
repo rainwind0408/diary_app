@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:convert';
-import '../../data/models/diary_entry.dart';
+import 'dart:io';
+
 import '../../data/repositories/diary_repository.dart';
-import '../../features/stickers/models/placed_sticker.dart';
+import 'backup_parsing.dart';
 
 class JsonImportService {
   JsonImportService._();
@@ -30,15 +30,22 @@ class JsonImportService {
         return ImportResult(0, 0, ['无效的备份文件：app 标识不匹配']);
       }
 
-      final entries = jsonData['entries'] as List;
-      if (entries.isEmpty) {
+      final entries = jsonData['entries'];
+      if (entries is! List || entries.isEmpty) {
         return ImportResult(0, 0, ['备份文件中没有日记数据']);
       }
 
       // 3. 逐条导入
       for (final entryMap in entries) {
         try {
-          final entry = _parseEntry(entryMap as Map<String, dynamic>);
+          // 解析规则统一在 BackupParsing.entryFromMap —— 它与 ZIP 导入共用一份，
+          // 避免两边各写一套、改一边漏一边（历史上就是这么漏掉 tags 的）。
+          //
+          // 媒体：JSON 备份里只有图片 / 录音的**路径元信息**，不含二进制文件，
+          // 所以这里无法还原。要连媒体一起备份请用「完整备份 ZIP」。
+          final entry = BackupParsing.entryFromMap(
+            entryMap as Map<String, dynamic>,
+          );
           await repository.insertEntry(entry);
           importedCount++;
         } catch (e) {
@@ -51,42 +58,6 @@ class JsonImportService {
     } catch (e) {
       return ImportResult(0, 0, ['JSON 解析失败: $e']);
     }
-  }
-
-  /// 解析日记条目
-  static DiaryEntry _parseEntry(Map<String, dynamic> map) {
-    return DiaryEntry(
-      title: (map['title'] as String?) ?? '无标题',
-      content: (map['content'] as String?) ?? '',
-      mood: (map['mood'] as String?) ?? '',
-      moodIntensity: (map['mood_intensity'] as int?) ?? 3,
-      moodNote: (map['mood_note'] as String?) ?? '',
-      moodLabel: (map['mood_label'] as String?) ?? '',
-      wordCount: (map['word_count'] as int?) ?? 0,
-      tags: (map['tags'] as List?)?.cast<String>() ?? [],
-      images: const [], // JSON 导入不支持图片
-      audios: const [], // JSON 导入不支持录音
-      stickers: _parseStickers(map['stickers']),
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'] as String)
-          : DateTime.now(),
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'] as String)
-          : DateTime.now(),
-    );
-  }
-
-  static List<PlacedSticker> _parseStickers(dynamic raw) {
-    if (raw == null || raw is! List) return [];
-    return raw.map((item) {
-      if (item is Map<String, dynamic>) {
-        return PlacedSticker.fromJson(item);
-      }
-      return PlacedSticker(
-        stickerId: '',
-        emoji: '',
-      );
-    }).toList();
   }
 }
 

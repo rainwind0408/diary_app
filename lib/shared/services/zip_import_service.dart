@@ -1,29 +1,17 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
-import '../../data/models/diary_entry.dart';
-import '../../data/models/placed_image.dart';
+
 import '../../data/models/placed_audio.dart';
+import '../../data/models/placed_image.dart';
 import '../../data/repositories/diary_repository.dart';
-import '../../features/stickers/models/placed_sticker.dart';
+import 'backup_parsing.dart';
 import 'json_import_service.dart';
 
 class ZipImportService {
   ZipImportService._();
-
-  /// 解析标签，兼容 List 和 String 两种格式
-  static List<String> _parseTags(dynamic raw) {
-    if (raw == null) return [];
-    if (raw is List) return raw.cast<String>();
-    if (raw is String) {
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is List) return decoded.cast<String>();
-      } catch (_) {}
-    }
-    return [];
-  }
 
   /// 从 ZIP 文件导入日记
   static Future<ImportResult> importFromZip(String zipPath) async {
@@ -89,12 +77,12 @@ class ZipImportService {
               await srcFile.copy(destPath);
               newImages.add(PlacedImage(
                 path: 'diary_images/$fileName',
-                dx: (imgData['dx'] as num).toDouble(),
-                dy: (imgData['dy'] as num).toDouble(),
-                width: (imgData['width'] as num).toDouble(),
-                height: (imgData['height'] as num).toDouble(),
-                rotation: (imgData['rotation'] as num?)?.toDouble() ?? 0,
-                scale: (imgData['scale'] as num?)?.toDouble() ?? 1.0,
+                dx: BackupParsing.doubleValue(imgData['dx']),
+                dy: BackupParsing.doubleValue(imgData['dy']),
+                width: BackupParsing.doubleValue(imgData['width']),
+                height: BackupParsing.doubleValue(imgData['height']),
+                rotation: BackupParsing.doubleValue(imgData['rotation']),
+                scale: BackupParsing.doubleValue(imgData['scale'], fallback: 1),
               ));
             }
           }
@@ -113,42 +101,29 @@ class ZipImportService {
               await srcFile.copy(destPath);
               newAudios.add(PlacedAudio(
                 path: 'diary_audio/$fileName',
-                durationMs: (audioData['durationMs'] as num?)?.toInt() ?? 0,
+                durationMs: BackupParsing.intValue(audioData['durationMs']),
                 createdAt: audioData['createdAt'] != null
-                    ? DateTime.parse(audioData['createdAt'])
+                    ? DateTime.tryParse(audioData['createdAt'].toString()) ??
+                        DateTime.now()
                     : DateTime.now(),
-                dx: (audioData['dx'] as num?)?.toDouble() ?? 0,
-                dy: (audioData['dy'] as num?)?.toDouble() ?? 0,
-                width: (audioData['width'] as num?)?.toDouble() ?? 220,
-                height: (audioData['height'] as num?)?.toDouble() ?? 80,
-                pageIndex: (audioData['pageIndex'] as num?)?.toInt() ?? 0,
+                dx: BackupParsing.doubleValue(audioData['dx']),
+                dy: BackupParsing.doubleValue(audioData['dy']),
+                width: BackupParsing.doubleValue(audioData['width'],
+                    fallback: 220),
+                height: BackupParsing.doubleValue(audioData['height'],
+                    fallback: 80),
+                pageIndex: BackupParsing.intValue(audioData['pageIndex']),
               ));
             }
           }
 
-          // 解析贴纸
-          final stickers = <PlacedSticker>[];
-          for (final stickerData in (entryMap['stickers'] as List? ?? [])) {
-            if (stickerData is Map<String, dynamic>) {
-              stickers.add(PlacedSticker.fromJson(stickerData));
-            }
-          }
-
-          // 创建日记条目
-          final entry = DiaryEntry(
-            title: entryMap['title'] ?? '无标题',
-            content: entryMap['content'] ?? '',
-            mood: entryMap['mood'] ?? '',
-            moodIntensity: entryMap['mood_intensity'] ?? 3,
-            moodNote: entryMap['mood_note'] ?? '',
-            moodLabel: entryMap['mood_label'] ?? '',
-            wordCount: entryMap['word_count'] ?? 0,
-            tags: _parseTags(entryMap['tags']),
+          // 创建日记条目。
+          // 字段解析统一在 BackupParsing.entryFromMap —— 与 JSON 导入共用一份，
+          // 避免两边各写一套、改一边漏一边。
+          final entry = BackupParsing.entryFromMap(
+            entryMap as Map<String, dynamic>,
             images: newImages,
             audios: newAudios,
-            stickers: stickers,
-            createdAt: DateTime.parse(entryMap['created_at']),
-            updatedAt: DateTime.parse(entryMap['updated_at']),
           );
 
           await repository.insertEntry(entry);

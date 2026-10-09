@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/toast.dart';
@@ -27,28 +28,35 @@ class _ImportExportButtonState extends State<ImportExportButton> {
     });
   }
 
+  /// 四种格式全部走「导出 → 唤起系统分享面板」。
+  ///
+  /// ⚠️ 不要再退回「只写文件 + Toast 一个路径」的写法：导出目录在应用私有 /
+  /// 缓存目录里，用户根本访问不到，那种实现等于没导出。
   Future<void> _export(String format) async {
     setState(() => _processing = true);
     try {
-      String path;
+      final ShareResult result;
+      final String label;
       switch (format) {
-        case 'markdown':
-          path = await ExportService.exportToMarkdown();
-          break;
-        case 'txt':
-          path = await ExportService.exportToTxt();
-          break;
         case 'zip':
-          await ZipExportService.exportAndShare();
-          if (mounted) {
-            Toast().show(context, 'ZIP 导出已启动', ToastType.success);
-          }
-          return;
+          label = '完整备份';
+          result = await ZipExportService.exportAndShare();
+        case 'markdown':
+          label = 'Markdown';
+          result = await ExportService.exportAndShare(DiaryExportFormat.markdown);
+        case 'txt':
+          label = 'TXT';
+          result = await ExportService.exportAndShare(DiaryExportFormat.txt);
         default:
-          path = await ExportService.exportToJson();
+          label = 'JSON';
+          result = await ExportService.exportAndShare(DiaryExportFormat.json);
       }
-      if (mounted) {
-        Toast().show(context, '导出成功：$path', ToastType.success);
+      if (!mounted) return;
+      // 用户关掉分享面板没选任何目标时，文件其实没落到用户手里，别报「成功」。
+      if (result.status == ShareResultStatus.dismissed) {
+        Toast().show(context, '已取消分享，$label 未保存', ToastType.warning);
+      } else {
+        Toast().show(context, '$label 导出完成', ToastType.success);
       }
     } catch (e) {
       if (mounted) {
@@ -175,6 +183,14 @@ class _ImportExportButtonState extends State<ImportExportButton> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('选择导出格式', style: AppTextStyles.cardTitle.copyWith(color: textColor)),
+              const SizedBox(height: 6),
+              Text(
+                '导出后会弹出系统分享面板，可保存到文件或发送给其他应用',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.label.copyWith(
+                  color: isDark ? AppColors.darkLabelText : AppColors.labelText,
+                ),
+              ),
               const SizedBox(height: 16),
               _MenuOption(
                 icon: Icons.code,
