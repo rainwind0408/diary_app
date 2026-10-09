@@ -1,7 +1,7 @@
 name: diary_app
 description: 折花日记 - 水彩可爱笔记本风格的个人日记应用（Android）
 publish_to: 'none'
-version: 1.1.0+35
+version: 1.1.1+36
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
